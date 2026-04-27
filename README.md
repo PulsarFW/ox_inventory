@@ -28,55 +28,17 @@
 
 A production fork of [ox_inventory](https://github.com/communityox/ox_inventory) shipping with a full **Pulsar Framework** bridge. Every resource in the stack — drugs, police, finance, targeting, crafting — interacts with inventory without modification. Item definitions, shop configs, and crafting tables are bundled directly into this resource.
 
-**`pulsar-inventory` does not need to run.**
-
 > [!WARNING]
 > Do not pull from upstream ox_inventory without reviewing bridge compatibility first. The bridge overrides core server and client behaviours.
 
 ---
 
-## Bridge
+## Pending
 
-Located in `modules/bridge/pulsar/`. Loaded automatically when `inventory:framework "pulsar"` is set.
-
-### Server
-
-| System | Status |
-|--------|--------|
-| Character spawn — inventory load + cash sync | ✅ |
-| Character logout — inventory save | ✅ |
-| Job / group updates — live sync | ✅ |
-| Cash as inventory item (bidirectional with pulsar-characters) | ✅ |
-| `SetData('Cash')` handler — keeps cash item in sync | ✅ |
-| Item database — all item files converted at boot | ✅ |
-| Item metadata — staticMetadata, type-based auto-generation, govid | ✅ |
-| Consumable use — status, health, armour, energy, stress, drugs, progress | ✅ |
-| Weapon items — equip / unequip via Weapons component | ✅ |
-| Ammo items — load into weapon with count input | ✅ |
-| Dispense items — pack count tracked in metadata | ✅ |
-| Bullet packing — combine loose bullets into ammo box | ✅ |
-| Shops — location-based + ped-spawned + programmatic | ✅ |
-| Stashes, trunks, gloveboxes, drops | ✅ |
-| Crafting benches — ped/model spawn, targeting, open | ✅ |
-| Schematics — per-player unlock + DB storage | ⏳ |
-| State bags — ItemStates, isCuffed, isDead | ✅ |
-
-### Client
-
-| System | Status |
-|--------|--------|
-| Shop open (pedinteraction → ox UI) | ✅ |
-| Crafting open (pedinteraction → ox UI) | ✅ |
-| Crafting bench ped + model spawning | ✅ |
-| Item use — anim config + progress bar | ✅ |
-| Armour / health modifiers | ✅ |
-| Energy + speed modifier | ✅ |
-| Stress tick state | ✅ |
-| Drug state (persisted to character) | ✅ |
-| Progress modifier | ✅ |
-| Item slot notifications (add / remove) | ✅ |
-| Ammo load UI (weapon list + count input) | ✅ |
-| Vending machine target integration | ✅ |
+| Item | Notes |
+|------|-------|
+| Schematics — per-player unlock + DB storage | Recipes register fine; missing the item use handler, MySQL write, and per-player merge on bench open |
+| Notifications via pulsar-notify | Item add/remove toasts currently use ox's built-in notify |
 
 ---
 
@@ -102,20 +64,15 @@ setr inventory:target      0
 
 ---
 
-## Data
+## Data Files
 
-Item definitions, shop configs, and crafting tables live under `data/` and are loaded at boot.
-
-```
-data/
-├── pulsar-items/          # Item definitions (converted from Pulsar format at runtime)
-│   └── index.lua          # Aggregator — lists all item files
-├── pulsar-crafting/
-│   ├── crafting_config.lua  # Bench definitions (label, location, targeting, recipes)
-│   └── schematic_config.lua # Schematic recipes (per-player unlock)
-├── shops.lua              # Location-based shop definitions
-└── licenses.lua           # License purchase point definitions
-```
+| File | Purpose |
+|------|---------|
+| `data/pulsar-items/` | Item definitions — loaded and converted to ox format at boot |
+| `data/pulsar-crafting/crafting_config.lua` | Crafting bench definitions (label, location, targeting, recipes) |
+| `data/pulsar-crafting/schematic_config.lua` | Schematic recipes (per-player unlock via item use) |
+| `data/shops.lua` | Shop definitions — location-based and ped-spawned |
+| `data/licenses.lua` | License purchase point locations and prices |
 
 ---
 
@@ -148,10 +105,39 @@ bun run build    # production build → web/build/
 
 ---
 
+---
+
+## Credits
+
+This resource is a fork of [ox_inventory](https://github.com/communityox/ox_inventory), originally developed by [Linden](https://github.com/thelindat) and the [Overextended](https://github.com/overextended) team. All core inventory logic, database layer, weapon system, crafting grid, and NUI framework are their work.
+
+The Pulsar Framework bridge (`modules/bridge/pulsar/`), item conversion pipeline, crafting config loader, cash-as-item sync, and UI retheme are additions made for this project and are not part of the upstream repository.
+
+| | |
+|---|---|
+| **Original project** | [communityox/ox_inventory](https://github.com/communityox/ox_inventory) |
+| **Original author** | [Linden (thelindat)](https://github.com/thelindat) |
+| **Contributors** | [Overextended](https://github.com/overextended) |
+| **Bridge & modifications** | Pulsar Framework team |
+
+---
+
+## License
+
+This resource inherits the license of the upstream project.
+
+ox_inventory is licensed under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**.
+
+> You may use, modify, and distribute this software under the terms of the LGPL-3.0. Any modifications to the library itself must be released under the same license. See the [full license text](https://www.gnu.org/licenses/lgpl-3.0.en.html) for details.
+
+The Pulsar Framework bridge code located in `modules/bridge/pulsar/` is proprietary and not covered by the upstream LGPL-3.0 license.
+
+---
+
 <div align="center">
 
 ![Pulsar Framework](https://img.shields.io/badge/Pulsar-Framework-7c3aed?style=flat-square)
 ![Built for FiveM](https://img.shields.io/badge/Built_for-FiveM-F40552?style=flat-square)
-![License](https://img.shields.io/badge/License-LGPL_3.0-green?style=flat-square)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-green?style=flat-square)](https://www.gnu.org/licenses/lgpl-3.0)
 
 </div>
