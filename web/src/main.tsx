@@ -1,3 +1,4 @@
+import '@mantine/core/styles.css';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
@@ -8,6 +9,8 @@ import App from './App';
 import './index.scss';
 import { ItemNotificationsProvider } from './components/utils/ItemNotifications';
 import { isEnvBrowser } from './utils/misc';
+import { MantineProvider } from '@mantine/core';
+import { theme } from './theme';
 
 const root = document.getElementById('root');
 
@@ -21,12 +24,14 @@ if (isEnvBrowser()) {
 
 createRoot(root!).render(
   <React.StrictMode>
-    <Provider store={store}>
-      <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
-        <ItemNotificationsProvider>
-          <App />
-        </ItemNotificationsProvider>
-      </DndProvider>
-    </Provider>
+    <MantineProvider theme={theme} defaultColorScheme='dark'>
+      <Provider store={store}>
+        <DndProvider backend={TouchBackend} options={{ enableMouseEvents: true }}>
+          <ItemNotificationsProvider>
+            <App />
+          </ItemNotificationsProvider>
+        </DndProvider>
+      </Provider>
+    </MantineProvider>
   </React.StrictMode>
 );

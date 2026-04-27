@@ -34,7 +34,8 @@ local function setupShopItems(id, shopType, shopName, groups)
 				metadata = slot.metadata,
 				license = slot.license,
 				currency = slot.currency,
-				grade = slot.grade
+				grade = slot.grade,
+				qualification = slot.qualification,
 			}
 
 			if slot.metadata then
@@ -99,8 +100,8 @@ local function createShop(shopType, id)
 		items = table.clone(shop.inventory),
 		slots = #shop.inventory,
 		type = 'shop',
-		coords = coords,
-		distance = shared.target and shop.targets?[id]?.distance,
+		coords = coords and vector3(coords.x, coords.y, coords.z),
+		distance = shared.target and shop.targets?[id]?.distance or shop.distance or 10,
 	}
 
 	setupShopItems(id, shopType, shop.name, groups)
@@ -141,7 +142,7 @@ lib.callback.register('ox_inventory:openShop', function(source, data)
 			if not group then return end
 		end
 
-		if type(shop.coords) == 'vector3' and #(GetEntityCoords(GetPlayerPed(source)) - shop.coords) > 10 then
+		if shared.framework ~= 'pulsar' and type(shop.coords) == 'vector3' and #(GetEntityCoords(GetPlayerPed(source)) - shop.coords) > 10 then
 			return
 		end
 
@@ -169,17 +170,36 @@ lib.callback.register('ox_inventory:openShop', function(source, data)
 	return { label = playerInv.label, type = playerInv.type, slots = playerInv.slots, weight = playerInv.weight, maxWeight = playerInv.maxWeight }, shop
 end)
 
-local function canAffordItem(inv, currency, price)
-	local canAfford = price >= 0 and Inventory.GetItemCount(inv, currency) >= price
+local function getWallet(inv)
+    if not inv?.player then return nil end
+    return exports['pulsar-characters']:FetchCharacterSource(inv.player.source)
+end
 
-	return canAfford or {
-		type = 'error',
-		description = locale('cannot_afford', ('%s%s'):format((currency == 'money' and locale('$') or math.groupdigits(price)), (currency == 'money' and math.groupdigits(price) or ' '..Items(currency).label)))
-	}
+local function canAffordItem(inv, currency, price)
+    if (currency == 'money' or currency == 'cash') and shared.framework ~= 'pulsar' then
+        local char = getWallet(inv)
+        local canAfford = price >= 0 and char and (char:GetData('Cash') or 0) >= price
+        return canAfford or {
+            type = 'error',
+            description = locale('cannot_afford', ('$%s'):format(math.groupdigits(price)))
+        }
+    end
+
+    local canAfford = price >= 0 and Inventory.GetItemCount(inv, currency) >= price
+    return canAfford or {
+        type = 'error',
+        description = locale('cannot_afford', ('%s %s'):format(math.groupdigits(price), Items(currency).label))
+    }
 end
 
 local function removeCurrency(inv, currency, price)
-	Inventory.RemoveItem(inv, currency, price)
+    if (currency == 'money' or currency == 'cash') and shared.framework ~= 'pulsar' then
+        local char = getWallet(inv)
+        if not char then return end
+        char:SetData('Cash', (char:GetData('Cash') or 0) - price)
+        return
+    end
+    Inventory.RemoveItem(inv, currency, price)
 end
 
 local function isRequiredGrade(grade, rank)
@@ -224,6 +244,10 @@ lib.callback.register('ox_inventory:buyItem', function(source, data)
 
 			if fromData.license and server.hasLicense and not server.hasLicense(playerInv, fromData.license) then
 				return false, false, { type = 'error', description = locale('item_unlicensed') }
+			end
+
+			if fromData.qualification and server.hasLicense and not server.hasLicense(playerInv, fromData.qualification) then
+				return false, false, { type = 'error', description = 'You are not certified for this item.' }
 			end
 
 			if fromData.grade then

@@ -78,7 +78,8 @@ end
 local Vehicles = lib.load('data.vehicles')
 local RegisteredStashes = {}
 
-for _, stash in pairs(lib.load('data.stashes') or {}) do
+local _stashOk, _stashData = pcall(lib.load, 'data.stashes')
+for _, stash in pairs(_stashOk and _stashData or {}) do
 	RegisteredStashes[stash.name] = {
 		name = stash.name,
 		label = stash.label,
@@ -107,7 +108,7 @@ local function loadInventoryData(data, player, ignoreSecurityChecks)
 			data.type = 'glovebox'
 		elseif data.id:find('^trunk') then
 			data.type = 'trunk'
-		elseif data.id:find('^evidence-') then
+		elseif data.id:find('^evidence%-') then
 			data.type = 'policeevidence'
 		end
 	end
@@ -2260,7 +2261,7 @@ function Inventory.GetItemCount(inv, itemName, metadata, strict)
 	local inventory = Inventory(inv)
 	local item = Items(itemName) --[[@as OxServerItem?]]
 
-	if not inventory or not item then return 0 end
+	if not inventory or not item or not inventory.items then return 0 end
 
 	metadata = assertMetadata(metadata)
 	local count = 0
@@ -2621,7 +2622,6 @@ lib.callback.register('ox_inventory:removeAmmoFromWeapon', function(source, slot
 
 	if not item or not item.ammoname then return end
 	local specialAmmo = slotData.metadata.specialAmmo and { type = slotData.metadata.specialAmmo } or nil
-
 
 	if Inventory.AddItem(inventory, item.ammoname, slotData.metadata.ammo, specialAmmo) then
 		slotData.metadata.ammo = 0

@@ -3,6 +3,22 @@ if not lib then return end
 require 'modules.bridge.client'
 require 'modules.interface.client'
 
+AddEventHandler("Inventory:Shared:DependencyUpdate", RetrieveComponents)
+function RetrieveComponents()
+	Notification = exports["pulsar-base"]:FetchComponent("Notification")
+end
+
+AddEventHandler("Core:Shared:Ready", function()
+	exports["pulsar-base"]:RequestDependencies("Inventory", {
+		"Notification",
+	}, function(error)
+		if #error > 0 then
+			return
+		end -- Do something to handle if not all dependencies loaded
+		RetrieveComponents()
+	end)
+end)
+
 local Utils = require 'modules.utils.client'
 local Weapon = require 'modules.weapon.client'
 local currentWeapon
@@ -152,11 +168,11 @@ function client.openInventory(inv, data)
 	end
 
 	if inv == 'dumpster' and cache.vehicle then
-		return lib.notify({ id = 'inventory_right_access', type = 'error', description = locale('inventory_right_access') })
+		return Notification:Error(locale('inventory_right_access'))
 	end
 
 	if not canOpenInventory() then
-        return lib.notify({ id = 'inventory_player_access', type = 'error', description = locale('inventory_player_access') })
+		return Notification:Error(locale('inventory_player_access'))
     end
 
     local left, right, accessError
@@ -179,22 +195,22 @@ function client.openInventory(inv, data)
         local targetCoords = targetPed and GetEntityCoords(targetPed)
 
         if not targetCoords or #(targetCoords - GetEntityCoords(playerPed)) > 1.8 or (not client.hasGroup(shared.police) and not Player(serverId).state.canSteal) then
-            return lib.notify({ id = 'inventory_right_access', type = 'error', description = locale('inventory_right_access') })
+			return Notification:Error(locale('inventory_right_access'))
         end
     end
 
     if inv == 'shop' and invOpen == false then
         if cache.vehicle then
-            return lib.notify({ id = 'cannot_perform', type = 'error', description = locale('cannot_perform') })
+			return Notification:Error(locale('cannot_perform'))
         end
 
-        left, right, accessError = lib.callback.await('ox_inventory:openShop', 200, data)
+        left, right, accessError = lib.callback.await('ox_inventory:openShop', false, data)
     elseif inv == 'crafting' then
         if cache.vehicle then
-            return lib.notify({ id = 'cannot_perform', type = 'error', description = locale('cannot_perform') })
+			return Notification:Error(locale('cannot_perform'))
         end
 
-        left, right, accessError = lib.callback.await('ox_inventory:openCraftingBench', 200, data.id, data.index)
+        left, right, accessError = lib.callback.await('ox_inventory:openCraftingBench', false, data.id, data.index)
 
         if left then
             right = CraftingBenches[data.id]
@@ -239,7 +255,7 @@ function client.openInventory(inv, data)
     end
 
     if accessError then
-        return lib.notify({ id = accessError, type = 'error', description = locale(accessError) })
+		return Notification:Error(locale(accessError))
     end
 
     -- Stash does not exist
@@ -247,7 +263,7 @@ function client.openInventory(inv, data)
         if left == false then return false end
 
         if invOpen == false then
-            return lib.notify({ id = 'inventory_right_access', type = 'error', description = locale('inventory_right_access') })
+			return Notification:Error(locale('inventory_right_access'))
         end
 
         if invOpen then return client.closeInventory() end
@@ -390,7 +406,7 @@ lib.callback.register('ox_inventory:usingItem', function(data, noAnim)
 
 		if success then
 			if item.notification then
-				lib.notify({ description = item.notification })
+				Notification:Info(item.notification)
 			end
 
 			if item.status then
@@ -426,7 +442,7 @@ local function useItem(data, cb, noAnim)
 
 	if not slotData or not canUseItem(data.ammo and true) then
         if currentWeapon then
-            return lib.notify({ id = 'cannot_perform', type = 'error', description = locale('cannot_perform') })
+			return Notification:Error(locale('cannot_perform'))
         end
 
         return
@@ -478,7 +494,7 @@ local function useSlot(slot, noAnim)
 
 	if canUseItem(data.ammo and true) then
 		if data.component and not currentWeapon then
-			return lib.notify({ id = 'weapon_hand_required', type = 'error', description = locale('weapon_hand_required') })
+			return Notification:Error(locale('weapon_hand_required'))
 		end
 
 		local durability = item.metadata.durability --[[@as number?]]
@@ -490,9 +506,9 @@ local function useSlot(slot, noAnim)
 		-- This won't work with degradation since we need access to os.time on the server
 		if durability and durability <= 100 and consume then
 			if durability <= 0 then
-				return lib.notify({ type = 'error', description = locale('no_durability', label) })
+				return Notification:Error(locale('no_durability'))
 			elseif consume ~= 0 and consume < 1 and durability < consume * 100 then
-				return lib.notify({ type = 'error', description = locale('not_enough_durability', label) })
+				return Notification:Error(locale('not_enough_durability'))
 			end
 		end
 
@@ -531,7 +547,7 @@ local function useSlot(slot, noAnim)
 
             if data.hash ~= GetSelectedPedWeapon(playerPed) then
                 lib.print.info(('failed to equip %s (cause unknown)'):format(item.name))
-                return lib.notify({ type = 'error', description = locale('cannot_use', data.label) })
+				return Notification:Error(locale('cannot_use'))
             end
 
             RemoveWeaponFromPed(cache.ped, data.hash)
@@ -652,7 +668,7 @@ local function useSlot(slot, noAnim)
 				-- Checks if the weapon already has the same component type attached
 				for componentIndex = 1, #weaponComponents do
 					if componentType == Items[weaponComponents[componentIndex]].type then
-						return lib.notify({ id = 'component_slot_occupied', type = 'error', description = locale('component_slot_occupied', componentType) })
+						return Notification:Error(locale('component_slot_occupied', componentType))
 					end
 				end
 
@@ -661,7 +677,7 @@ local function useSlot(slot, noAnim)
 
 					if DoesWeaponTakeWeaponComponent(currentWeapon.hash, component) then
 						if HasPedGotWeaponComponent(playerPed, currentWeapon.hash, component) then
-							lib.notify({ id = 'component_has', type = 'error', description = locale('component_has', label) })
+							Notification:Error(locale('component_has', label))
 						else
 							useItem(data, function(data)
 								if data then
@@ -677,11 +693,11 @@ local function useSlot(slot, noAnim)
 						return
 					end
 				end
-				lib.notify({ id = 'component_invalid', type = 'error', description = locale('component_invalid', label) })
+				Notification:Error(locale('component_invalid', label))
 			elseif data.allowArmed then
 				useItem(data)
             else
-                return lib.notify({ id = 'cannot_perform', type = 'error', description = locale('cannot_perform') })
+				return Notification:Error(locale('cannot_perform'))
 			end
 		elseif not data.ammo and not data.component then
 			useItem(data)
@@ -775,6 +791,19 @@ local function registerCommands()
 
 			local closest = lib.points.getClosestPoint()
 
+			if _inInvPoly and _inInvPoly.inventory then
+				local invType = _inInvPoly.inventory.invType
+				local shopKey = _polyShopTypes and _polyShopTypes[invType]
+				if shopKey then
+					local requiredDuty = _polyShopRestrictions and _polyShopRestrictions[shopKey]
+					if requiredDuty and LocalPlayer.state.onDuty ~= requiredDuty then
+						return Notification:Error('You are not authorized to access this')
+					end
+					return client.openInventory('shop', { type = shopKey })
+				end
+				return client.openInventory('stash', { id = _inInvPoly.inventory.owner })
+			end
+
 			if closest and closest.currentDistance < 1.2 and (not closest.instance or closest.instance == currentInstance) then
 				if closest.inv == 'crafting' then
 					return client.openInventory('crafting', { id = closest.id, index = closest.index })
@@ -801,7 +830,7 @@ local function registerCommands()
 			end
 
 			if invBusy or not canOpenInventory() then
-				return lib.notify({ id = 'inventory_player_access', type = 'error', description = locale('inventory_player_access') })
+				return Notification:Error(locale('inventory_player_access'))
 			end
 
 			if StashTarget then
@@ -845,7 +874,7 @@ local function registerCommands()
 						useSlot(slotId)
 					end
 				else
-					lib.notify({ id = 'no_durability', type = 'error', description = locale('no_durability', currentWeapon.label) })
+					Notification:Error(locale('no_durability', currentWeapon.label))
 				end
 			end
 		end
@@ -989,7 +1018,7 @@ RegisterNetEvent('ox_inventory:inventoryReturned', function(data)
 	if source == '' then return end
 	if currentWeapon then currentWeapon = Weapon.Disarm(currentWeapon) end
 
-	lib.notify({ description = locale('items_returned') })
+	Notification:Info(locale('items_returned'))
 	client.closeInventory()
 
 	local num, items = 0, {}
@@ -1004,7 +1033,7 @@ end)
 
 RegisterNetEvent('ox_inventory:inventoryConfiscated', function(message)
 	if source == '' then return end
-	if message then lib.notify({ description = locale('items_confiscated') }) end
+	if message then Notification:Info(locale('item_confiscated')) end
 	if currentWeapon then currentWeapon = Weapon.Disarm(currentWeapon) end
 
 	client.closeInventory()
@@ -1292,11 +1321,11 @@ RegisterNetEvent('ox_inventory:setPlayerInventory', function(currentDrops, inven
 			if IsControlJustReleased(0, 38) then
 				lib.callback('ox_inventory:buyLicense', 1000, function(success, message)
 					if success ~= nil then
-						lib.notify({
-							id = message,
-							type = success == false and 'error' or 'success',
-							description = locale(message, locale('license', point.type:gsub("^%l", string.upper)))
-						})
+						if success == false then
+							Notification:Error(locale('license', point.type:gsub('^%1', string.upper)))
+						else
+							Notification:Info(locale('license', point.type:gsub('^%1', string.upper)))
+						end
 					end
 				end, point.invId)
 			end
@@ -1339,7 +1368,7 @@ RegisterNetEvent('ox_inventory:setPlayerInventory', function(currentDrops, inven
 	PlayerData.loaded = true
 
 	if not client.disablesetupnotification then
-		lib.notify({ description = locale('inventory_setup') })
+		Notification:Info(locale('inventory_setup'))
 	end
 
 	Shops.refreshShops()
@@ -1380,14 +1409,14 @@ RegisterNetEvent('ox_inventory:setPlayerInventory', function(currentDrops, inven
 
 						if not id or #(playerCoords - pedCoords) > maxDistance or (not client.hasGroup(shared.police) and not Player(currentInventory.id).state.canSteal) then
 							client.closeInventory()
-							lib.notify({ id = 'inventory_lost_access', type = 'error', description = locale('inventory_lost_access') })
+							Notification:Error(locale('inventory_lost_access'))
 						else
 							TaskTurnPedToFaceCoord(playerPed, pedCoords.x, pedCoords.y, pedCoords.z, 50)
 						end
 
 					elseif currentInventory.coords and (#(playerCoords - currentInventory.coords) > maxDistance or canSteal) then
 						client.closeInventory()
-						lib.notify({ id = 'inventory_lost_access', type = 'error', description = locale('inventory_lost_access') })
+						Notification:Error(locale('inventory_lost_access'))
 					end
 				end
 			end
@@ -1620,7 +1649,7 @@ RegisterNUICallback('removeComponent', function(data, cb)
 	end
 
 	if data.slot ~= currentWeapon.slot then
-		return lib.notify({ id = 'weapon_hand_wrong', type = 'error', description = locale('weapon_hand_wrong') })
+		return Notification:Error(locale('weapon_hand_wrong'))
 	end
 
 	local itemSlot = PlayerData.inventory[currentWeapon.slot]
@@ -1676,7 +1705,7 @@ local function giveItemToTarget(serverId, slotId, count)
     local notification = lib.callback.await('ox_inventory:giveItem', false, slotId, serverId, count or 0)
 
     if notification then
-        lib.notify({ type = 'error', description = locale(table.unpack(notification)) })
+		Notification:Error(locale(table.unpack(notification)))
     end
 end
 
@@ -1717,10 +1746,10 @@ RegisterNUICallback('giveItem', function(data, cb)
 			local option = nearbyPlayers[i]
 
             if isGiveTargetValid(option.ped, option.coords) then
-				local playerName = Utils.getPlayerName(option.id)
+				local playerName = GetPlayerName(option.id)
 				option.id = GetPlayerServerId(option.id)
                 ---@diagnostic disable-next-line: inject-field
-				option.label = playerName
+				option.label = ('[%s] %s'):format(option.id, playerName)
 				n += 1
 				giveList[n] = option
 			end
@@ -1852,7 +1881,7 @@ RegisterNUICallback('swapItems', function(data, cb)
 		if type(response) == 'table' then
 			SendNUIMessage({ action = 'refreshSlots', data = { items = response } })
 		else
-			lib.notify({ type = 'error', description = locale(response) })
+			Notification:Error(locale(response))
 		end
 	end
 end)
@@ -1884,8 +1913,20 @@ RegisterNUICallback('buyItem', function(data, cb)
 		end
 	end
 
+	-- if message then
+	-- 	Notification:Info(message)
+	-- end
+
 	if message then
-		lib.notify(message)
+		if message.type == 'error' then
+			Notification:Error(message.description)
+		elseif message.type == 'success' then
+			Notification:Success(message.description)
+		elseif message.type == 'warning' then
+			Notification:Warn(message.description)
+		else
+			Notification:Info(message.description)	
+		end
 	end
 
 	cb(response)
@@ -1900,7 +1941,7 @@ RegisterNUICallback('craftItem', function(data, cb)
 		local success, response = lib.callback.await('ox_inventory:craftItem', 200, id, index, data.fromSlot, data.toSlot)
 
 		if not success then
-			if response then lib.notify({ type = 'error', description = locale(response or 'cannot_perform') }) end
+			if response then Notification:Error(locale(response or 'cannot_perform')) end
 			break
 		end
 	end

@@ -1,8 +1,7 @@
 import React, { useCallback, useRef } from 'react';
 import { DragSource, Inventory, InventoryType, Slot, SlotWithItem } from '../../typings';
 import { useDrag, useDragDropManager, useDrop } from 'react-dnd';
-import { useAppDispatch } from '../../store';
-import WeightBar from '../utils/WeightBar';
+import { useAppDispatch, useAppSelector } from '../../store';
 import { onDrop } from '../../dnd/onDrop';
 import { onBuy } from '../../dnd/onBuy';
 import { Items } from '../../store/items';
@@ -13,8 +12,10 @@ import { onCraft } from '../../dnd/onCraft';
 import useNuiEvent from '../../hooks/useNuiEvent';
 import { ItemsPayload } from '../../reducers/refreshSlots';
 import { closeTooltip, openTooltip } from '../../store/tooltip';
-import { openContextMenu } from '../../store/contextMenu';
+import { openContextMenu, closeContextMenu } from '../../store/contextMenu';
 import { useMergeRefs } from '@floating-ui/react';
+import { Badge, Progress } from '@mantine/core';
+import { tokens } from '../../theme';
 
 interface SlotProps {
   inventoryId: Inventory['id'];
@@ -30,6 +31,7 @@ const InventorySlot: React.ForwardRefRenderFunction<HTMLDivElement, SlotProps> =
   const manager = useDragDropManager();
   const dispatch = useAppDispatch();
   const timerRef = useRef<number | null>(null);
+  const contextMenuOpen = useAppSelector((state) => state.contextMenu.coords !== null);
 
   const canDrag = useCallback(() => {
     return canPurchaseItem(item, { type: inventoryType, groups: inventoryGroups }) && canCraftItem(item, inventoryType);
@@ -104,6 +106,11 @@ const InventorySlot: React.ForwardRefRenderFunction<HTMLDivElement, SlotProps> =
     event.preventDefault();
     if (inventoryType !== 'player' || !isSlotWithItem(item)) return;
 
+    dispatch(closeTooltip());
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     dispatch(openContextMenu({ item, coords: { x: event.clientX, y: event.clientY } }));
   };
 
@@ -119,6 +126,9 @@ const InventorySlot: React.ForwardRefRenderFunction<HTMLDivElement, SlotProps> =
 
   const refs = useMergeRefs([connectRef, ref]);
 
+  const canInteract =
+    canPurchaseItem(item, { type: inventoryType, groups: inventoryGroups }) && canCraftItem(item, inventoryType);
+
   return (
     <div
       ref={refs}
@@ -126,19 +136,32 @@ const InventorySlot: React.ForwardRefRenderFunction<HTMLDivElement, SlotProps> =
       onClick={handleClick}
       className="inventory-slot"
       style={{
-        filter:
-          !canPurchaseItem(item, { type: inventoryType, groups: inventoryGroups }) || !canCraftItem(item, inventoryType)
-            ? 'brightness(80%) grayscale(100%)'
-            : undefined,
         opacity: isDragging ? 0.4 : 1.0,
-        backgroundImage: `url(${item?.name ? getItemUrl(item as SlotWithItem) : 'none'}`,
-        border: isOver ? '1px dashed rgba(255,255,255,0.4)' : '',
+        border: isOver ? `1px dashed ${tokens.borderTealHover}` : undefined,
       }}
     >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1,
+          backgroundImage: `url(${item?.name ? getItemUrl(item as SlotWithItem) : 'none'})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          backgroundSize: '7vh',
+          imageRendering: '-webkit-optimize-contrast',
+          filter: !canInteract ? 'brightness(80%) grayscale(100%)' : undefined,
+        }}
+      />
+      {inventoryType === 'player' && item.slot <= 5 && (
+        <div className="inventory-slot-number">{item.slot}</div>
+      )}
       {isSlotWithItem(item) && (
         <div
           className="item-slot-wrapper"
+          style={{ position: 'relative', zIndex: 2 }}
           onMouseEnter={() => {
+            if (contextMenuOpen) return;
             timerRef.current = window.setTimeout(() => {
               dispatch(openTooltip({ item, inventoryType }));
             }, 500) as unknown as number;
@@ -156,25 +179,45 @@ const InventorySlot: React.ForwardRefRenderFunction<HTMLDivElement, SlotProps> =
               inventoryType === 'player' && item.slot <= 5 ? 'item-hotslot-header-wrapper' : 'item-slot-header-wrapper'
             }
           >
-            {inventoryType === 'player' && item.slot <= 5 && <div className="inventory-slot-number">{item.slot}</div>}
             <div className="item-slot-info-wrapper">
               <p>
                 {item.weight > 0
                   ? item.weight >= 1000
                     ? `${(item.weight / 1000).toLocaleString('en-us', {
                         minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })}kg `
                     : `${item.weight.toLocaleString('en-us', {
                         minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
                       })}g `
                   : ''}
               </p>
-              <p>{item.count ? item.count.toLocaleString('en-us') + `x` : ''}</p>
+              {item.count ? (
+                <Badge
+                  size="xs"
+                  radius={2}
+                  ff="'Rajdhani', sans-serif"
+                  style={{
+                    background: tokens.tealFaint,
+                    border: `1px solid ${tokens.borderTeal}`,
+                    color: '#fff',
+                    fontWeight: 600,
+                  }}
+                >
+                  {item.count.toLocaleString('en-us')}x
+                </Badge>
+              ) : null}
             </div>
           </div>
           <div>
             {inventoryType !== 'shop' && item?.durability !== undefined && (
-              <WeightBar percent={item.durability} durability />
+              <Progress
+                value={item.durability}
+                size={2}
+                color={item.durability < 50 ? 'red.6' : item.durability < 75 ? 'orange.5' : 'teal.5'}
+                styles={{ root: { backgroundColor: tokens.borderSubtle } }}
+              />
             )}
             {inventoryType === 'shop' && item?.price !== undefined && (
               <>

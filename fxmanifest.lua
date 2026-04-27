@@ -4,8 +4,8 @@ lua54 'yes'
 game 'gta5'
 name 'ox_inventory'
 author 'Overextended'
-version '2.45.1'
-repository 'https://github.com/overextended/ox_inventory'
+version '2.47.9'
+repository 'https://github.com/pulsar-Framework/ox_inventory'
 description 'Slot-based inventory with item metadata support'
 
 dependencies {
@@ -25,10 +25,15 @@ ox_libs {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
-    'init.lua'
+    'init.lua',
+    'modules/bridge/pulsar/migration.lua',
+    'modules/bridge/pulsar/commands.lua',
+    'modules/bridge/pulsar/crafting_server.lua',
 }
 
-client_script 'init.lua'
+client_scripts {
+    'init.lua',
+}
 
 ui_page 'web/build/index.html'
 
@@ -40,8 +45,13 @@ files {
     'web/build/assets/*.js',
     'web/build/assets/*.css',
     'web/images/*.png',
+    'web/images/*.webp',
     'modules/**/shared.lua',
     'modules/**/client.lua',
     'modules/bridge/**/client.lua',
     'data/*.lua',
+    'data/pulsar-items/index.lua',
+    'data/pulsar-items/*.lua',
+    'data/pulsar-items/**/*.lua',
+    'data/pulsar-crafting/*.lua'
 }

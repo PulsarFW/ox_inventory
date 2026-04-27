@@ -179,16 +179,17 @@ local function refreshShops()
 					::nextShop::
 				end
 			end
-		elseif shop.locations then
+		elseif shop.locations and shared.framework ~= 'pulsar' then
 			if not hasShopAccess(shop) then goto skipLoop end
             local shopPrompt = { icon = 'fas fa-shopping-basket' }
 
 			for i = 1, #shop.locations do
 				local coords = shop.locations[i]
+				local coords3 = vec3(coords.x, coords.y, coords.z)
 				id += 1
 
-				shops[id] = lib.points.new(coords, 16, {
-					coords = coords,
+				shops[id] = lib.points.new(coords3, 16, {
+					coords = coords3,
 					distance = 16,
 					inv = 'shop',
 					invId = i,
