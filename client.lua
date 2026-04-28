@@ -5,11 +5,11 @@ require 'modules.interface.client'
 
 AddEventHandler("Inventory:Shared:DependencyUpdate", RetrieveComponents)
 function RetrieveComponents()
-	Notification = exports["pulsar-base"]:FetchComponent("Notification")
+	Notification = exports["pulsar-core"]:FetchComponent("Notification")
 end
 
 AddEventHandler("Core:Shared:Ready", function()
-	exports["pulsar-base"]:RequestDependencies("Inventory", {
+	exports["pulsar-core"]:RequestDependencies("Inventory", {
 		"Notification",
 	}, function(error)
 		if #error > 0 then

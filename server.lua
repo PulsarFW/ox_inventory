@@ -5,7 +5,7 @@ require 'modules.crafting.server'
 require 'modules.shops.server'
 require 'modules.pefcl.server'
 
--- version check handled by pulsar-base Version component in bridge server.lua
+-- version check handled by pulsar-core Version component in bridge server.lua
 
 local TriggerEventHooks = require 'modules.hooks.server'
 local db = require 'modules.mysql.server'

@@ -8,6 +8,7 @@
 -- but if something is checking items every frame it will be slow as hell
 -- FIXIT: listen to Inventory:Client:Cache and cache locally, swap Check.Player.* to use cache
 
+local Items = require 'modules.items.client'
 
 -- Pulsar Weapons bridge
 -- Ports pulsar-inventory weapon equip/unequip with draw anims,
@@ -645,7 +646,7 @@ local ClientInventory = {
     -- TODO rename functions when others updated otherwise errors
     Container = {
         Open = function(self, data)
-                exports['pulsar-base']:ServerCallback('Inventory:Server:Open', data, function(state)
+                exports['pulsar-core']:ServerCallback('Inventory:Server:Open', data, function(state)
                 -- state is true on success; ox handles the actual UI open server-side
             end)
         end,
@@ -667,7 +668,7 @@ AddEventHandler('onClientResourceStart', function(resource)
     if resource ~= GetCurrentResourceName() then return end
 
     if not _itemUseRegistered then
-        exports['pulsar-base']:RegisterClientCallback('Inventory:ItemUse', function(data, cb)
+        exports['pulsar-core']:RegisterClientCallback('Inventory:ItemUse', function(data, cb)
             if data.anim and (not data.pbConfig or not data.pbConfig.animation) then
                 exports['pulsar-animations']:EmotesPlay(data.anim, false, data.time, true)
             end
@@ -1152,5 +1153,28 @@ end)
 
 exports('openNearbyInventory', function(serverId)
     exports['ox_inventory']:openInventory('player', serverId)
+end)
+
+-- ItemsGetData(name?) — mirrors server export for client-side callers
+-- no args: returns the full Items table; with name: returns single item definition
+exports('ItemsGetData', function(itemName)
+    if itemName then
+        return Items(itemName)
+    end
+    return Items
+end)
+
+exports('ItemsGetWithStaticMetadata', function(masterKey, mainIdName, textureIdName, gender, data)
+    for k, v in pairs(Items) do
+        if v.staticMetadata ~= nil
+            and v.staticMetadata[masterKey] ~= nil
+            and v.staticMetadata[masterKey][gender] ~= nil
+            and v.staticMetadata[masterKey][gender][mainIdName] == data[mainIdName]
+            and v.staticMetadata[masterKey][gender][textureIdName] == data[textureIdName]
+        then
+            return k
+        end
+    end
+    return nil
 end)
 

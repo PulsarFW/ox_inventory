@@ -98,7 +98,7 @@ bun run build    # production build → web/build/
 |----------|---------|
 | `ox_lib` | Points, callbacks, notify, keybinds, progress |
 | `oxmysql` | Database (inventory persistence) |
-| `pulsar-base` | Framework core — middleware, fetch, callbacks |
+| `pulsar-core` | Framework core — middleware, fetch, callbacks |
 | `pulsar-characters` | Character data — cash, name, SID, jobs |
 | `pulsar-pedinteraction` | Ped interaction events (shops, crafting) |
 | `ox_target` | World targeting (optional, controlled by `inventory:target`) |

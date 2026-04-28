@@ -9,7 +9,7 @@ local Inventory = require 'modules.inventory.server'
 local Items     = require 'modules.items.server'
 
 local function toSource(sid)
-    local player = exports['pulsar-base']:FetchPlayerData('SID', tonumber(sid))
+    local player = exports['pulsar-core']:FetchPlayerData('SID', tonumber(sid))
     if not player then return nil end
     return player:GetData('Source')
 end
@@ -189,7 +189,7 @@ end
 -- checks qualifications (driving license, weapon license etc) on the character
 function server.hasLicense(inv, name)
     if not inv?.player then return false end
-    local player = exports['pulsar-base']:FetchSource(inv.player.source)
+    local player = exports['pulsar-core']:FetchSource(inv.player.source)
     if not player then return false end
     local char = player:GetData('Character')
     if not char then return false end
@@ -453,7 +453,7 @@ function server.UseItem(source, itemName, data)
 
     if animConfig then
         local p = promise.new()
-        exports['pulsar-base']:ClientCallback(source, 'Inventory:ItemUse', {
+        exports['pulsar-core']:ClientCallback(source, 'Inventory:ItemUse', {
             anim = animConfig.anim,
             time = animConfig.time,
             pbConfig = animConfig.pbConfig,
@@ -980,19 +980,19 @@ CraftingReal.Schematics = { Has = function () return false end, Add = function()
 -- expose CraftingReal to crafting_server.lua (same resource, shared global scope)
 _CraftingBridge = CraftingReal
 
--- lifecycle hooks — wait for pulsar-base to be ready before registering middleware
+-- lifecycle hooks — wait for pulsar-core to be ready before registering middleware
 CreateThread(function()
-    repeat Wait(100) until pcall(function() exports['pulsar-base']:GetSbfwVersion() end)
+    repeat Wait(100) until pcall(function() exports['pulsar-core']:GetPlsfwVersion() end)
 
     local _newCharSources = {}
-    exports['pulsar-base']:MiddlewareAdd('Characters:Created', function(source)
+    exports['pulsar-core']:MiddlewareAdd('Characters:Created', function(source)
         _newCharSources[source] = true
         return true
     end, 5)
 
     -- on character spawn we build the plain table ox expects and call its setPlayerInventory
     -- ox then loads the DB inventory, creates the inv object, and calls our server.setPlayerData
-    exports['pulsar-base']:MiddlewareAdd('Characters:Spawning', function(source)
+    exports['pulsar-core']:MiddlewareAdd('Characters:Spawning', function(source)
         local char = exports['pulsar-characters']:FetchCharacterSource(source)
         if not char then return end
 
@@ -1005,7 +1005,7 @@ CreateThread(function()
         local charFirst = char:GetData('First') or ''
         local charLast = char:GetData('Last') or ''
         local charName = (charFirst .. ' ' .. charLast):gsub('^%s+', ''):gsub('%s+$', '')
-        local player = exports['pulsar-base']:FetchSource(source)
+        local player = exports['pulsar-core']:FetchSource(source)
         if charName == '' and player then charName = player:GetData('Name') end
         local cash = char:GetData('Cash') or 0
         server.setPlayerInventory({
@@ -1047,7 +1047,7 @@ CreateThread(function()
 
     -- close and remove inventory on character logout
     -- note: playerDropped is handled by ox's generic bridge/server.lua already
-    exports['pulsar-base']:MiddlewareAdd('Characters:Logout', function(source)
+    exports['pulsar-core']:MiddlewareAdd('Characters:Logout', function(source)
         local inv = Inventory(source)
         if inv and inv.player then
             inv:closeInventory()
@@ -1056,7 +1056,7 @@ CreateThread(function()
         return true
     end, 5)
 
-    exports['pulsar-base']:RegisterServerCallback('Inventory:Server:Open', function(source, data, cb)
+    exports['pulsar-core']:RegisterServerCallback('Inventory:Server:Open', function(source, data, cb)
         if not data or not data.invType or not data.owner then cb(false) return end
         Inventory.OpenSecondary(Inventory, source, data.invType, data.owner, data.class or false, data.model or false)
         cb(true)
@@ -1082,7 +1082,7 @@ MySQL.query([[
 
 -- register item use handlers for all schematic items
 CreateThread(function()
-    repeat Wait(100) until pcall(function() exports['pulsar-base']:GetSbfwVersion() end)
+    repeat Wait(100) until pcall(function() exports['pulsar-core']:GetPlsfwVersion() end)
     local InvServer = require 'modules.inventory.server'
     local schematics = lib.load('data.pulsar-crafting.schematic_config') or {}
 
@@ -1090,7 +1090,7 @@ CreateThread(function()
         local key      = schematicKey
         local itemName = 'schematic_' .. key
         InvServer.Items:RegisterUse(itemName, 'UnlockSchematic', function(source, slotData)
-            local player = exports['pulsar-base']:FetchSource(source)
+            local player = exports['pulsar-core']:FetchSource(source)
             if not player then return end
             local char = player:GetData('Character')
             if not char then return end
@@ -1401,7 +1401,7 @@ AddEventHandler('Jobs:Server:JobUpdate', function(source)
     local inv = Inventory(source)
     if not inv or not inv.player then return end
 
-    local player = exports['pulsar-base']:FetchSource(source)
+    local player = exports['pulsar-core']:FetchSource(source)
     if not player then return end
     local char = player:GetData('Character')
     if not char then return end

@@ -2,7 +2,7 @@
 -- runs at server start, fires after crafting component is registered
 
 CreateThread(function()
-    repeat Wait(100) until pcall(function() exports['pulsar-base']:GetSbfwVersion() end)
+    repeat Wait(100) until pcall(function() exports['pulsar-core']:GetPlsfwVersion() end)
 
     local Crafting = _CraftingBridge
     local CraftingTables = lib.load('data.pulsar-crafting.crafting_config')

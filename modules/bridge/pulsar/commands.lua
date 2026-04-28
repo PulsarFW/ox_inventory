@@ -3,13 +3,13 @@
 local function getTarget(source, sidArg)
     local sid
     if sidArg == 'me' then
-        local player = exports['pulsar-base']:FetchSource(source)
+        local player = exports['pulsar-core']:FetchSource(source)
         sid = player and player:GetData('Character') and player:GetData('Character'):GetData('SID')
     else
         sid = tonumber(sidArg)
     end
     if not sid then return nil, nil end
-    local player = exports['pulsar-base']:FetchPlayerData('SID', sid)
+    local player = exports['pulsar-core']:FetchPlayerData('SID', sid)
     if not player then return nil, nil end
     return player:GetData('Source'), player:GetData('Character')
 end
