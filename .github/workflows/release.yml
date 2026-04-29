@@ -32,6 +32,7 @@ jobs:
           cp ./{LICENSE,README.md,fxmanifest.lua,client.lua,server.lua,init.lua} ./temp/ox_inventory
           cp -r ./{data,locales,modules,setup} ./temp/ox_inventory
           cp -r ./web/build ./temp/ox_inventory/web/
+          cp -r ./web/images ./temp/ox_inventory/web/
           cd ./temp && zip -r ../ox_inventory.zip ./ox_inventory
 
       - name: Create release
