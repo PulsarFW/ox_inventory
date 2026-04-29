@@ -1918,15 +1918,11 @@ RegisterNUICallback('buyItem', function(data, cb)
 	-- end
 
 	if message then
-		if message.type == 'error' then
-			Notification:Error(message.description)
-		elseif message.type == 'success' then
-			Notification:Success(message.description)
-		elseif message.type == 'warning' then
-			Notification:Warn(message.description)
-		else
-			Notification:Info(message.description)	
-		end
+		local t = message.type == 'error' and 'error'
+			or message.type == 'success' and 'success'
+			or message.type == 'warning' and 'warning'
+			or 'info'
+		exports['pulsar-hud']:Notification(t, message.description, 5000)
 	end
 
 	cb(response)
