@@ -27,7 +27,6 @@ server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'init.lua',
     'modules/bridge/pulsar/migration.lua',
-    'modules/bridge/pulsar/commands.lua',
     'modules/bridge/pulsar/crafting_server.lua',
 }
 

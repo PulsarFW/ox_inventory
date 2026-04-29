@@ -1444,10 +1444,20 @@ end)
 
 -- Admin commands — pulsar-chat RegisterAdminCommand
 
-local function fetchBySID(source, sid)
-    local char = exports['pulsar-characters']:FetchBySID(tonumber(sid))
+local function notify(source, ntype, msg)
+    exports['pulsar-hud']:Notification(source, ntype, msg, 5000)
+end
+
+local function fetchTarget(source, sid)
+    if sid == 'me' then return source end
+    local targetSID = tonumber(sid)
+    if not targetSID then
+        notify(source, 'error', 'Invalid SID: ' .. tostring(sid))
+        return nil
+    end
+    local char = exports['pulsar-characters']:FetchCharacterData('SID', targetSID)
     if not char then
-        exports['pulsar-hud']:Notification("error", source, "Player with SID " .. sid .. " not found online", 5000)
+        notify(source, 'error', 'Player with SID ' .. sid .. ' not found online')
         return nil
     end
     return char:GetData('Source')
@@ -1456,30 +1466,27 @@ end
 exports['pulsar-chat']:RegisterAdminCommand('giveitem', function(source, args)
     local item = Items(args[2])
     if not item then
-        exports['pulsar-hud']:Notification("error", source, "Item not found", 5000)
+        notify(source, 'error', 'Item not found: ' .. tostring(args[2]))
         return
     end
 
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
 
     local inv   = Inventory(target)
     local count = tonumber(args[3]) and math.max(tonumber(args[3]), 1) or 1
-    local meta  = args[4] and { type = tonumber(args[4]) or args[4] }
 
-    local success, response = Inventory.AddItem(inv, item.name, count, meta)
+    local success, response = Inventory.AddItem(inv, item.name, count)
 
     if success then
-        exports['pulsar-hud']:Notification("success", source,
-            ('Gave %sx %s to SID %s'):format(count, item.name, args[1]), 5000)
+        notify(source, 'success', ('Gave %sx %s to SID %s'):format(count, item.name, args[1]))
         if server.loglevel > 0 then
             local srcInv = Inventory(source) or { label = 'console', owner = 'console' }
             lib.logger(srcInv.owner, 'admin',
                 ('"%s" gave %sx %s to SID "%s"'):format(srcInv.label, count, item.name, args[1]))
         end
     else
-        exports['pulsar-hud']:Notification("error", source,
-            ('Failed to give %sx %s (%s)'):format(count, item.name, response), 5000)
+        notify(source, 'error', ('Failed to give %sx %s (%s)'):format(count, item.name, response))
     end
 end, {
     help = 'Give an item to a player by SID',
@@ -1487,32 +1494,30 @@ end, {
         { name = 'SID',   help = 'Target player SID' },
         { name = 'Item',  help = 'Item name' },
         { name = 'Count', help = 'Amount' },
-        { name = 'Type',  help = 'Sets "type" metadata', optional = true },
     },
 }, -1)
 
 exports['pulsar-chat']:RegisterAdminCommand('removeitem', function(source, args)
     local item = Items(args[2])
     if not item then
-        exports['pulsar-hud']:Notification("error", source, "Item not found", 5000)
+        notify(source, 'error', 'Item not found: ' .. tostring(args[2]))
         return
     end
 
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
 
     local inv   = Inventory(target)
     local count = tonumber(args[3]) and math.max(tonumber(args[3]), 1) or 1
-    local meta  = args[4] and { type = tonumber(args[4]) or args[4] }
 
-    local success, response = Inventory.RemoveItem(inv, item.name, count, meta, nil, true)
+    local success, response = Inventory.RemoveItem(inv, item.name, count, nil, nil, true)
 
     if not success then
-        exports['pulsar-hud']:Notification("error", source,
-            ('Failed to remove %sx %s (%s)'):format(count, item.name, response), 5000)
+        notify(source, 'error', ('Failed to remove %sx %s (%s)'):format(count, item.name, response))
         return
     end
 
+    notify(source, 'success', ('Removed %sx %s from SID %s'):format(count, item.name, args[1]))
     if server.loglevel > 0 then
         local srcInv = Inventory(source) or { label = 'console', owner = 'console' }
         lib.logger(srcInv.owner, 'admin',
@@ -1530,26 +1535,25 @@ end, {
 
 exports['pulsar-chat']:RegisterAdminCommand('setitem', function(source, args)
     local item  = Items(args[2])
-    local count = args[3] or 0
-    local meta  = args[4] and { type = tonumber(args[4]) or args[4] }
+    local count = tonumber(args[3]) or 0
 
     if not item then
-        exports['pulsar-hud']:Notification("error", source, "Item not found", 5000)
+        notify(source, 'error', 'Item not found: ' .. tostring(args[2]))
         return
     end
 
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
 
     local inv             = Inventory(target)
-    local success, response = exports.ox_inventory:SetItem(inv, item.name, count, meta)
+    local success, response = exports.ox_inventory:SetItem(inv, item.name, count)
 
     if not success then
-        exports['pulsar-hud']:Notification("error", source,
-            ('Failed to set %s to %sx (%s)'):format(item.name, count, response), 5000)
+        notify(source, 'error', ('Failed to set %s to %sx (%s)'):format(item.name, count, response))
         return
     end
 
+    notify(source, 'success', ('Set %s to %sx for SID %s'):format(item.name, count, args[1]))
     if server.loglevel > 0 then
         local srcInv = Inventory(source) or { label = 'console', owner = 'console' }
         lib.logger(srcInv.owner, 'admin',
@@ -1561,18 +1565,18 @@ end, {
         { name = 'SID',   help = 'Target player SID' },
         { name = 'Item',  help = 'Item name' },
         { name = 'Count', help = 'Amount to set' },
-        { name = 'Type',  help = 'Sets "type" metadata', optional = true },
     },
 }, -1)
 
 exports['pulsar-chat']:RegisterAdminCommand('clearevidence', function(source, args)
-    local inv             = Inventory(source)
-    local group, grade    = server.hasGroup(inv, shared.police)
+    local inv          = Inventory(source)
+    local group, grade = server.hasGroup(inv, shared.police)
     if not group or not server.isPlayerBoss or not server.isPlayerBoss(source, group, grade) then
-        exports['pulsar-hud']:Notification("error", source, "No permission", 5000)
+        notify(source, 'error', 'No permission')
         return
     end
     MySQL.query('DELETE FROM ox_inventory WHERE name = ?', { ('evidence-%s'):format(args[1]) })
+    notify(source, 'success', 'Cleared evidence locker: ' .. tostring(args[1]))
 end, {
     help = 'Clear a police evidence locker by ID',
     params = {
@@ -1581,10 +1585,10 @@ end, {
 }, 1)
 
 exports['pulsar-chat']:RegisterAdminCommand('confiscateinv', function(source, args)
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
     exports.ox_inventory:ConfiscateInventory(target)
-    exports['pulsar-hud']:Notification("success", source, "Confiscated inventory for SID: " .. args[1], 5000)
+    notify(source, 'success', 'Confiscated inventory for SID: ' .. args[1])
 end, {
     help = 'Confiscate a player inventory by SID (restore with /returninv)',
     params = {
@@ -1593,10 +1597,10 @@ end, {
 }, 1)
 
 exports['pulsar-chat']:RegisterAdminCommand('returninv', function(source, args)
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
     exports.ox_inventory:ReturnInventory(target)
-    exports['pulsar-hud']:Notification("success", source, "Returned inventory for SID: " .. args[1], 5000)
+    notify(source, 'success', 'Returned inventory for SID: ' .. args[1])
 end, {
     help = 'Restore a previously confiscated inventory by SID',
     params = {
@@ -1607,13 +1611,13 @@ end, {
 exports['pulsar-chat']:RegisterAdminCommand('clearinv', function(source, args)
     if args[1] == 'me' then
         exports.ox_inventory:ClearInventory(source)
-        exports['pulsar-hud']:Notification("success", source, "Cleared your inventory", 5000)
+        notify(source, 'success', 'Cleared your inventory')
         return
     end
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
     exports.ox_inventory:ClearInventory(target)
-    exports['pulsar-hud']:Notification("success", source, "Cleared inventory for SID: " .. args[1], 5000)
+    notify(source, 'success', 'Cleared inventory for SID: ' .. args[1])
 end, {
     help = 'Wipe all items from a player inventory (SID or "me")',
     params = {
@@ -1635,7 +1639,7 @@ exports['pulsar-chat']:RegisterAdminCommand('viewinv', function(source, args)
         exports.ox_inventory:InspectInventory(source, source)
         return
     end
-    local target = fetchBySID(source, args[1])
+    local target = fetchTarget(source, args[1])
     if not target then return end
     exports.ox_inventory:InspectInventory(source, target)
 end, {
