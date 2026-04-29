@@ -557,9 +557,7 @@ end)
 
 
 
--- ============================================================
 -- Inventory shim
--- ============================================================
 
 -- every pulsar resource gets Inventory via FetchComponent('Inventory') not a global
 -- we build the client shim table and register it as the Inventory component
@@ -1097,9 +1095,7 @@ AddEventHandler('Polyzone:Exit', function(id, testedPoint, insideZones, data)
     LocalPlayer.state:set('_inInvPoly', nil, false)
 end)
 
--- ============================================================
 -- pulsar-compat client exports
--- ============================================================
 
 exports('StaticTooltipOpen', function(item)
     ClientInventory.StaticTooltip:Open(item)
@@ -1154,5 +1150,314 @@ exports('ItemsGetWithStaticMetadata', function(masterKey, mainIdName, textureIdN
         end
     end
     return nil
+end)
+
+-- Grapple hook
+
+local EARLY_STOP_MULTIPLIER     = 0.5
+local DEFAULT_GTA_FALL_DISTANCE = 8.3
+local DEFAULT_GRAPPLE_OPTIONS   = { waitTime = 0.5, grappleSpeed = 20.0 }
+local GRAPPLEHASH               = `WEAPON_BULLPUPSHOTGUN`
+
+CAN_GRAPPLE_HERE = true
+
+local Grapple = {}
+
+local function DirectionToRotation(dir, roll)
+    local z     = -(math.deg(math.atan(dir.x, dir.y)))
+    local rotpos = vector3(dir.z, #vector2(dir.x, dir.y), 0.0)
+    local x     = math.deg(math.atan(rotpos.x, rotpos.y))
+    return vector3(x, roll, z)
+end
+
+local function RotationToDirection(rot)
+    local rotZ     = math.rad(rot.z)
+    local rotX     = math.rad(rot.x)
+    local cosOfRotX = math.abs(math.cos(rotX))
+    return vector3(-(math.sin(rotZ)) * cosOfRotX, math.cos(rotZ) * cosOfRotX, math.sin(rotX))
+end
+
+local function RayCastGamePlayCamera(dist)
+    local camRot = GetGameplayCamRot()
+    local camPos = GetGameplayCamCoord()
+    local dir    = RotationToDirection(camRot)
+    local dest   = camPos + (dir * dist)
+    local ray    = StartShapeTestRay(camPos.x, camPos.y, camPos.z, dest.x, dest.y, dest.z, 17, -1, 0)
+    local _, hit, endPos, _, entityHit = GetShapeTestResult(ray)
+    if hit == 0 then endPos = dest end
+    return hit, endPos, entityHit
+end
+
+function GrappleCurrentAimPoint(dist)
+    return RayCastGamePlayCamera(dist or 40)
+end
+
+local function _waitForFall(pid, ped, stopDistance)
+    SetPlayerFallDistance(pid, 10.0)
+    while GetEntityHeightAboveGround(ped) > stopDistance do
+        SetPedCanRagdoll(ped, false)
+        Wait(0)
+    end
+    SetPlayerFallDistance(pid, DEFAULT_GTA_FALL_DISTANCE)
+end
+
+local function PinRope(rope, ped, boneId, dest)
+    PinRopeVertex(rope, 0, dest.x, dest.y, dest.z)
+    local boneCoords = GetPedBoneCoords(ped, boneId, 0.0, 0.0, 0.0)
+    PinRopeVertex(rope, GetRopeVertexCount(rope) - 1, boneCoords.x, boneCoords.y, boneCoords.z)
+end
+
+function Grapple.new(dest, options)
+    local self = {}
+    options = options or {}
+    for k, v in pairs(DEFAULT_GRAPPLE_OPTIONS) do
+        if options[k] == nil then options[k] = v end
+    end
+
+    local grappleId = options.grappleId or math.random((-2^32)+1, 2^32-1)
+    local pid       = options.plyServerId and GetPlayerFromServerId(options.plyServerId) or PlayerId()
+    local ped       = GetPlayerPed(pid)
+    local oldPedRef = ped
+    local heading   = GetEntityHeading(ped)
+    local start     = GetEntityCoords(ped)
+    local notMyPed  = options.plyServerId and options.plyServerId ~= GetPlayerServerId(PlayerId())
+    local dir       = (dest - start) / #(dest - start)
+    local length    = #(dest - start)
+    local finished  = false
+    local rope
+
+    if pid ~= -1 then
+        rope = AddRope(dest.x, dest.y, dest.z, 0.0, 0.0, 0.0, 0.0, 4, 0.0, 0.0, 1.0, false, false, false, 5.0, false)
+        LoadRopeData(rope, 'ropeFamily3')
+        RopeLoadTextures()
+        ped = ClonePed(ped, 0, 0, 0)
+        SetEntityHeading(ped, heading)
+        SetEntityAlpha(oldPedRef, 0, 0)
+        for _, v in ipairs(GetGamePool('CObject')) do
+            if Entity(v).state.backWeapon and IsEntityAttachedToEntity(v, oldPedRef) then
+                SetEntityAlpha(v, 0, 0)
+            end
+        end
+    end
+
+    local function _setupDestroyEventHandler()
+        local eventName = ('Inventory:Client:Grapple:DestroyRope:%s'):format(grappleId)
+        RegisterNetEvent(eventName)
+        local ev
+        ev = AddEventHandler(eventName, function()
+            self.destroy(false)
+            RemoveEventHandler(ev)
+        end)
+    end
+
+    function self._handleRope(r, p, boneIndex, d)
+        CreateThread(function()
+            while not finished do PinRope(r, p, boneIndex, d) Wait(0) end
+            DeleteChildRope(r)
+            DeleteRope(r)
+        end)
+    end
+
+    function self.activateSync()
+        if pid == -1 then return end
+        local distTraveled = 0.0
+        local currentPos   = start
+        local lastPos      = currentPos
+        local rot          = DirectionToRotation(-dir, 0.0) + vector3(90.0, 0.0, 0.0)
+        local lastRot      = rot
+
+        Wait(options.waitTime * 1000)
+        while not finished and distTraveled < length do
+            local fwd = dir * options.grappleSpeed * GetFrameTime()
+            distTraveled = distTraveled + #fwd
+            if distTraveled > length then
+                distTraveled = length
+                currentPos   = dest
+            else
+                currentPos = currentPos + fwd
+            end
+            SetEntityCoords(ped, currentPos.x, currentPos.y, currentPos.z)
+            SetEntityRotation(ped, rot.x, rot.y, rot.z)
+            if distTraveled > 3 and HasEntityCollidedWithAnything(ped) == 1 then
+                local c = lastPos - (dir * EARLY_STOP_MULTIPLIER)
+                SetEntityCoords(ped, c.x, c.y, c.z)
+                SetEntityRotation(ped, lastRot.x, lastRot.y, lastRot.z)
+                break
+            end
+            lastPos = currentPos
+            lastRot = rot
+            if not notMyPed then SetGameplayCamFollowPedThisUpdate(ped) end
+            Wait(0)
+        end
+
+        if not notMyPed then
+            local coords = GetEntityCoords(ped)
+            local pedrot = GetEntityRotation(ped)
+            SetEntityCoords(oldPedRef, coords.x, coords.y, coords.z)
+            SetEntityRotation(oldPedRef, pedrot.x, pedrot.y, pedrot.z)
+        else
+            FreezeEntityPosition(ped, true, true)
+        end
+
+        self.destroy()
+        _waitForFall(pid, ped, 3.0)
+
+        CreateThread(function()
+            Wait(200)
+            for _, v in ipairs(GetGamePool('CObject')) do
+                if Entity(v).state.backWeapon and IsEntityAttachedToEntity(v, oldPedRef) then
+                    SetEntityAlpha(v, 255, 0)
+                end
+            end
+        end)
+    end
+
+    function self.activate() CreateThread(self.activateSync) end
+
+    function self.destroy(shouldTrigger)
+        finished = true
+        if shouldTrigger ~= false then
+            if pid ~= -1 then
+                CreateThread(function()
+                    if notMyPed then
+                        local loops = 0
+                        while #(GetEntityCoords(ped) - GetEntityCoords(oldPedRef)) > 2 and loops < 20 do
+                            loops = loops + 1
+                            Wait(32)
+                        end
+                    end
+                    DeleteEntity(ped)
+                    SetEntityAlpha(oldPedRef, 255, 0)
+                end)
+            end
+            TriggerServerEvent('Inventory:Server:Grapple:DestroyRope', grappleId)
+        end
+    end
+
+    if pid ~= -1 then
+        self._handleRope(rope, ped, 0x49D9, dest)
+        if notMyPed then self.activate() end
+    end
+    if options.plyServerId == nil then
+        TriggerServerEvent('Inventory:Server:Grapple:CreateRope', grappleId, dest)
+    else
+        _setupDestroyEventHandler()
+    end
+
+    return self
+end
+
+local _grappleEquipped    = false
+local _shownGrappleButton = false
+
+local function GrappleThreads()
+    local ply = PlayerId()
+
+    CreateThread(function()
+        while _grappleEquipped and cache.weapon == GRAPPLEHASH do
+            local freeAiming = IsPlayerFreeAiming(ply)
+            local hit        = GrappleCurrentAimPoint(40)
+            if not _shownGrappleButton and freeAiming and hit and CAN_GRAPPLE_HERE then
+                _shownGrappleButton = true
+                exports['pulsar-hud']:ActionShow('grapple', '{key}Shoot{/key} To Grapple')
+            elseif _shownGrappleButton and (not freeAiming or not hit or not CAN_GRAPPLE_HERE) then
+                _shownGrappleButton = false
+                exports['pulsar-hud']:ActionHide('grapple')
+            end
+            Wait(250)
+        end
+    end)
+
+    CreateThread(function()
+        while _grappleEquipped and cache.weapon == GRAPPLEHASH do
+            if IsControlJustReleased(0, 257) and IsPlayerFreeAiming(ply) and _grappleEquipped and CAN_GRAPPLE_HERE then
+                local hit, pos = GrappleCurrentAimPoint(40)
+                if hit then
+                    local slotToDegrade = _equipped and _equipped.Slot
+                    _grappleEquipped    = false
+                    _shownGrappleButton = false
+                    exports['pulsar-hud']:ActionHide('grapple')
+                    local g = Grapple.new(pos)
+                    g.activate()
+                    if slotToDegrade then
+                        TriggerServerEvent('Inventory:Server:DegradeLastUsed', 25, slotToDegrade)
+                    end
+                    Wait(1000)
+                    WEAPONS:UnequipIfEquippedNoAnim()
+                end
+            end
+            Wait(0)
+        end
+    end)
+end
+
+lib.onCache('weapon', function(weapon)
+    if weapon == GRAPPLEHASH then
+        _grappleEquipped = true
+        SetTimeout(100, GrappleThreads)
+    else
+        _grappleEquipped = false
+    end
+end)
+
+RegisterNetEvent('Inventory:Client:Grapple:CreateRope')
+AddEventHandler('Inventory:Client:Grapple:CreateRope', function(plyServerId, grappleId, dest)
+    if plyServerId == GetPlayerServerId(PlayerId()) then return end
+    Grapple.new(dest, { plyServerId = plyServerId, grappleId = grappleId })
+end)
+
+-- Vanity items
+
+RegisterNetEvent('Inventory:Client:UseVanityItem')
+AddEventHandler('Inventory:Client:UseVanityItem', function(sender, action, itemData)
+    if not LocalPlayer.state.loggedIn then return end
+    local senderClient = GetPlayerFromServerId(sender)
+    local isMe         = sender == LocalPlayer.state.ID
+
+    if action == 'overlay' then
+        exports['pulsar-hud']:OverlayShow(itemData)
+    elseif action == 'overlayall' then
+        if senderClient < 0 and not isMe then return end
+        if not senderClient then return end
+        local myPed   = LocalPlayer.state.ped
+        local sendPed = GetPlayerPed(senderClient)
+        if DoesEntityExist(sendPed) then
+            local dist = #(GetEntityCoords(sendPed) - GetEntityCoords(myPed))
+            if dist <= 4.0 and HasEntityClearLosToEntity(myPed, sendPed, 17) then
+                exports['pulsar-hud']:OverlayShow(itemData)
+            end
+        end
+    end
+    SetTimeout(10000, function() exports['pulsar-hud']:OverlayHide() end)
+end)
+
+-- Signs
+
+RegisterNetEvent('Inventory:Client:Signs:UseSign')
+AddEventHandler('Inventory:Client:Signs:UseSign', function(item)
+    if item.Name then
+        exports['pulsar-animations']:EmotesPlay(item.Name, false, false, false)
+    end
+end)
+
+-- Halloween
+
+RegisterNetEvent('Inventory:Client:Halloween:Pumpkin')
+AddEventHandler('Inventory:Client:Halloween:Pumpkin', function(emote)
+    exports['pulsar-sounds']:PlayDistance(20.0, 'evillaugh.ogg', 0.2)
+    exports['pulsar-animations']:EmotesPlay(emote, false, false, false)
+end)
+
+-- ERP
+
+RegisterNetEvent('Inventory:Client:ERP:ButtPlug')
+AddEventHandler('Inventory:Client:ERP:ButtPlug', function(color)
+    exports['pulsar-animations']:EmotesPlay(('erp_buttplug_%s'):format(color), false, false, false)
+end)
+
+RegisterNetEvent('Inventory:Client:ERP:Vibrator')
+AddEventHandler('Inventory:Client:ERP:Vibrator', function(color)
+    exports['pulsar-sounds']:PlayDistance(20.0, 'vibrator.ogg', 0.2)
+    exports['pulsar-animations']:EmotesPlay(('erp_vibrator_%s'):format(color), false, false, false)
 end)
 

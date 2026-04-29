@@ -175,6 +175,62 @@ function server.hasLicense(inv, name)
     return false
 end
 
+-- duty check — reads the onDuty state bag set by pulsar-jobs
+-- jobName can be a string or table of strings
+function server.isOnDuty(source, jobName)
+    local onDuty = Player(source).state.onDuty
+    if not onDuty then return false end
+    if jobName then
+        if type(jobName) == 'table' then
+            for _, job in ipairs(jobName) do
+                if onDuty == job then return true end
+            end
+            return false
+        end
+        return onDuty == jobName
+    end
+    return true
+end
+
+-- reputation level check against pulsar-characters rep system
+function server.hasRep(source, rep)
+    if not rep then return false end
+    return exports['pulsar-characters']:RepHasLevel(source, rep.id, rep.level)
+end
+
+-- used by items/shops to check a player's bank balance without withdrawing
+function server.hasBalance(source, amt)
+    local char = exports['pulsar-characters']:FetchCharacterSource(source)
+    if not char then return false end
+    local f = exports['pulsar-finance']:AccountsGetPersonal(char:GetData('SID'))
+    return f ~= nil and exports['pulsar-finance']:BalanceHas(f.Account, amt)
+end
+
+-- used by items/shops to charge a player's bank account
+function server.withdrawMoney(source, amt, itemLabel, count)
+    local char = exports['pulsar-characters']:FetchCharacterSource(source)
+    if not char then return false end
+    local sid = char:GetData('SID')
+    local f = exports['pulsar-finance']:AccountsGetPersonal(sid)
+    if not f then return false end
+    return exports['pulsar-finance']:BalanceWithdraw(f.Account, amt, {
+        type               = 'withdraw',
+        title              = 'Shop Purchase',
+        description        = ('Bought %s x%s'):format(itemLabel or 'item', count or 1),
+        transactionAccount = false,
+        data               = { character = sid },
+    })
+end
+
+-- ox shop system calls these two when a player buys something
+function server.canAfford(source, price)
+    return server.hasBalance(source, price)
+end
+
+function server.removeMoney(source, price, reason)
+    return server.withdrawMoney(source, price, reason, 1)
+end
+
 -- [compType][drawableId][textureId] = itemName
 local StaticMetaIndex
 do
@@ -1139,9 +1195,7 @@ exports('Remove', function(owner, invType, itemName, count)
     return Inventory.RemoveItem(inv, itemName, count or 1)
 end)
 
--- ============================================================
 -- pulsar-compat server exports (bulk)
--- ============================================================
 
 exports('ItemsHas', function(source, name, count)
     local inv = Inventory(source)
@@ -1460,4 +1514,133 @@ RegisterNetEvent('ox_inventory:bridge:useThrowable', function(itemName, slot)
         TriggerClientEvent('ox_inventory:bridge:throwableUsed', src, remaining.count or 0)
     end
 end)
+
+-- Grapple relay
+
+RegisterServerEvent('Inventory:Server:Grapple:CreateRope', function(grappleId, dest)
+    TriggerClientEvent('Inventory:Client:Grapple:CreateRope', -1, source, grappleId, dest)
+end)
+
+RegisterServerEvent('Inventory:Server:Grapple:DestroyRope', function(grappleId)
+    TriggerClientEvent(('Inventory:Client:Grapple:DestroyRope:%s'):format(grappleId), -1)
+end)
+
+-- degrade the grapple gun slot after a successful launch
+RegisterNetEvent('Inventory:Server:DegradeLastUsed', function(amount, slot)
+    local src = source
+    local inv = Inventory(src)
+    if not inv or not slot then return end
+    slot = tonumber(slot)
+    local item = inv.items[slot]
+    if not item then return end
+    local meta = table.clone(item.metadata or {})
+    meta.durability = math.max(0, (meta.durability or 100) - amount)
+    Inventory.SetMetadata(inv, slot, meta)
+end)
+
+-- Vanity items / Signs / Halloween / ERP item use registration
+
+CreateThread(function()
+    -- vanity items (overlay effect on self or nearby players)
+    Inventory.Items:RegisterUse('vanityitem', 'VanityItems', function(source, item)
+        local action = item?.MetaData?.CustomItemAction
+        if action == 'overlay' then
+            TriggerClientEvent('Inventory:Client:UseVanityItem', source, source, action, item)
+        elseif action == 'overlayall' then
+            TriggerClientEvent('Inventory:Client:UseVanityItem', -1, source, action, item)
+        end
+    end)
+
+    -- signs (prop-holding emotes)
+    for _, name in ipairs({
+        'sign_dontblock', 'sign_leftturn',  'sign_nopark',     'sign_notresspass',
+        'sign_rightturn', 'sign_stop',      'sign_uturn',      'sign_walkingman', 'sign_yield',
+    }) do
+        local n = name
+        Inventory.Items:RegisterUse(n, 'Signs', function(source, item)
+            TriggerClientEvent('Inventory:Client:Signs:UseSign', source, item)
+        end)
+    end
+
+    -- halloween
+    Inventory.Items:RegisterUse('carvedpumpkin', 'Halloween', function(source)
+        TriggerClientEvent('Inventory:Client:Halloween:Pumpkin', source, 'pumpkin1')
+    end)
+
+    -- ERP
+    Inventory.Items:RegisterUse('buttplug_black', 'ERP', function(source)
+        TriggerClientEvent('Inventory:Client:ERP:ButtPlug', source, 'black')
+    end)
+    Inventory.Items:RegisterUse('buttplug_pink', 'ERP', function(source)
+        TriggerClientEvent('Inventory:Client:ERP:ButtPlug', source, 'pink')
+    end)
+    Inventory.Items:RegisterUse('vibrator_pink', 'ERP', function(source)
+        TriggerClientEvent('Inventory:Client:ERP:Vibrator', source, 'pink')
+    end)
+end)
+
+-- ============================================================
+-- Gang chains
+-- ============================================================
+
+CreateThread(function()
+    local ItemList = require 'modules.items.shared'
+    for name, itemData in pairs(ItemList) do
+        if itemData.gangChain then
+            local n = name
+            Inventory.Items:RegisterUse(n, 'GangChains', function(source, item)
+                local char = exports['pulsar-characters']:FetchCharacterSource(source)
+                if not char then return end
+                if n ~= char:GetData('GangChain') then
+                    TriggerClientEvent('Ped:Client:ChainAnim', source)
+                    Wait(3000)
+                    char:SetData('GangChain', n)
+                else
+                    TriggerClientEvent('Ped:Client:ChainAnim', source)
+                    Wait(3000)
+                    char:SetData('GangChain', 'NONE')
+                end
+            end)
+        end
+    end
+end)
+
+RegisterNetEvent('Inventory:ClearGangChain', function()
+    local char = exports['pulsar-characters']:FetchCharacterSource(source)
+    if char then char:SetData('GangChain', 'NONE') end
+end)
+
+-- ============================================================
+-- Incinerators — auto-clear when anything is dropped in
+-- ============================================================
+
+exports['ox_inventory']:registerHook('swapItems', function(payload)
+    if payload.toInventory:find('incinerator_') then
+        SetTimeout(0, function()
+            exports['ox_inventory']:Clear(payload.toInventory)
+        end)
+    end
+end, {
+    inventoryFilter = {
+        'incinerator_mrpd',
+        'incinerator_sast',
+        'incinerator_lmpd',
+    },
+})
+
+-- ============================================================
+-- Police secured compartments — weapons only
+-- ============================================================
+
+exports['ox_inventory']:registerHook('swapItems', function(payload)
+    local toSlot   = payload.toSlot
+    local fromSlot = payload.fromSlot
+    if type(toSlot) == 'table' and fromSlot?.name and not fromSlot.name:find('WEAPON_') then
+        return false
+    elseif type(toSlot) == 'table' and toSlot?.name and not toSlot.name:find('WEAPON_') then
+        return false
+    end
+end, {
+    inventoryFilter = { '^polsecuredcompartment[%w]+' },
+})
 
