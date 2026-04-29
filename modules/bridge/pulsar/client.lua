@@ -1,12 +1,5 @@
 -- pulsar ox bridge : client side
 -- handles client side inv events for pulsar compatibility
---
--- TODO: client cached inventory not bridged
--- pulsar sends Inventory:Client:Cache with the full inventory array after any change
--- resources read from this cache for local HasItem checks instead of server roundtrips
--- our Check.Player.HasItem calls Search() export which is probably fine latency-wise
--- but if something is checking items every frame it will be slow as hell
--- FIXIT: listen to Inventory:Client:Cache and cache locally, swap Check.Player.* to use cache
 
 local Items = require 'modules.items.client'
 
@@ -424,21 +417,6 @@ RegisterNetEvent('Weapons:Client:DoFlashFx', function(x, y, z, stunTime, afterTi
         _doFlashFx(pct, stunTime * pct)
     end
 end)
-
-_polyShopRestrictions = {
-    ['armory:police'] = 'police',
-    ['armory:doc'] = 'corrections'
-}
-
-_polyShopTypes = {
-    [27] = 'armory:police',
-    [37] = 'armory:doc',
-}
-
-local CraftingStub = {
-    RegisterBench = function() end,
-    CanCraft      = function() return false end,
-}
 
 local _spawnedBenchEntities = {}
 local _pendingBenches       = nil
@@ -1080,7 +1058,7 @@ AddEventHandler('Shop:Client:OpenShop', function(obj, data)
     end
 end)
 
-_inInvPoly = nil
+local _inInvPoly = nil
 
 RegisterNetEvent('Inventory:Client:PolySetup', function(locs)
     if not locs then return end

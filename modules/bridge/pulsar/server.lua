@@ -76,31 +76,6 @@ end
 
 local ItemStateMap = buildItemStateMap()
 
--- index[itemType][drawableId][textureId] = itemName
--- used by GetWithStaticMetadata for O(1) clothing item lookup
-local function buildStaticMetaIndex()
-    local index = {}
-    local allItems = lib.load('data.pulsar-items.index')
-    if allItems then
-        for _, item in ipairs(allItems) do
-            if item.name and item.staticMetadata then
-                for compType, compData in pairs(item.staticMetadata) do
-                    if type(compData) == 'table' and compData.drawableId ~= nil and compData.textureId ~= nil then
-                        index[compType] = index[compType] or {}
-                        index[compType][compData.drawableId] = index[compType][compData.drawableId] or {}
-                        if not index[compType][compData.drawableId][compData.textureId] then
-                            index[compType][compData.drawableId][compData.textureId] = item.name
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return index
-end
-
-local StaticMetaIndex = buildStaticMetaIndex()
-
 local function updateCharacterStates(source, inv)
     local char = exports['pulsar-characters']:FetchCharacterSource(source)
     if not char then return end
@@ -201,7 +176,7 @@ function server.hasLicense(inv, name)
 end
 
 -- [compType][drawableId][textureId] = itemName
-StaticMetaIndex = nil
+local StaticMetaIndex
 do
     local allItems = lib.load('data.pulsar-items.index') or {}
     local idx = {}
