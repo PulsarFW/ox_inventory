@@ -19,7 +19,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
         working-directory: web
 
       - name: Build
@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir -p ./temp/ox_inventory/web
           cp ./{LICENSE,README.md,fxmanifest.lua,client.lua,server.lua,init.lua} ./temp/ox_inventory
-          cp -r ./{data,locales,modules} ./temp/ox_inventory
+          cp -r ./{data,locales,modules,setup} ./temp/ox_inventory
           cp -r ./web/build ./temp/ox_inventory/web/
           cd ./temp && zip -r ../ox_inventory.zip ./ox_inventory
 
