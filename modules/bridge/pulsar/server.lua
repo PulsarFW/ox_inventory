@@ -1430,9 +1430,7 @@ AddEventHandler('Jobs:Server:JobUpdate', function(source)
     local inv = Inventory(source)
     if not inv or not inv.player then return end
 
-    local player = exports['pulsar-core']:FetchSource(source)
-    if not player then return end
-    local char = player:GetData('Character')
+    local char = exports['pulsar-characters']:FetchCharacterSource(source)
     if not char then return end
 
     local groups = {}
