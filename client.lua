@@ -6,6 +6,12 @@ require 'modules.interface.client'
 AddEventHandler("Inventory:Shared:DependencyUpdate", RetrieveComponents)
 function RetrieveComponents()
 	Notification = exports["pulsar-core"]:FetchComponent("Notification")
+	if not Notification then
+		Notification = {
+			Error = function(_, msg) exports['pulsar-hud']:Notification('error', msg, 5000) end,
+			Info  = function(_, msg) exports['pulsar-hud']:Notification('info',  msg, 5000) end,
+		}
+	end
 end
 
 AddEventHandler("Core:Shared:Ready", function()
@@ -255,7 +261,8 @@ function client.openInventory(inv, data)
     end
 
     if accessError then
-		return Notification:Error(locale(accessError))
+        exports['pulsar-hud']:Notification('error', locale(accessError), 5000)
+        return
     end
 
     -- Stash does not exist
@@ -263,7 +270,8 @@ function client.openInventory(inv, data)
         if left == false then return false end
 
         if invOpen == false then
-			return Notification:Error(locale('inventory_right_access'))
+            exports['pulsar-hud']:Notification('error', locale('inventory_right_access'), 5000)
+            return
         end
 
         if invOpen then return client.closeInventory() end

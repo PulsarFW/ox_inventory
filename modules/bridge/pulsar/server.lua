@@ -694,7 +694,7 @@ local invTypeToOxType = {
 }
 
 exports['ox_inventory']:registerHook('openShop', function(payload)
-    local shopType = payload.shop and payload.shop.type
+    local shopType = payload.shopType
     local required = shopType and _shopDutyRestrictions[shopType]
     if not required then return true end
     local onDuty = Player(payload.source).state.onDuty
@@ -1659,7 +1659,7 @@ end)
 
 RegisterNetEvent('ox_inventory:bridge:openShop', function(shopId)
     local src = source
-    Inventory.OpenSecondary(Inventory.Items, src, 11, ('shop:%s'):format(tostring(shopId)))
+    Inventory.OpenSecondary(Inventory.Items, src, 11, tostring(shopId))
 end)
 
 RegisterNetEvent('ox_inventory:bridge:openTrunk', function(netId)
