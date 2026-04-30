@@ -1138,6 +1138,17 @@ exports('ItemsGetData', function(itemName)
     return Items
 end)
 
+exports('ItemsHas', function(name, count)
+    if next(pulsarItemCache) then
+        local total = 0
+        for _, slot in pairs(pulsarItemCache) do
+            if slot.Name == name then total = total + (slot.Count or 0) end
+        end
+        return total >= (count or 1)
+    end
+    return (exports['ox_inventory']:Search('count', name) or 0) >= (count or 1)
+end)
+
 exports('ItemsGetWithStaticMetadata', function(masterKey, mainIdName, textureIdName, gender, data)
     for k, v in pairs(Items) do
         if v.staticMetadata ~= nil
