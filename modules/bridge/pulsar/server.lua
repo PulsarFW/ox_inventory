@@ -164,9 +164,7 @@ end
 -- checks qualifications (driving license, weapon license etc) on the character
 function server.hasLicense(inv, name)
     if not inv?.player then return false end
-    local player = exports['pulsar-core']:FetchSource(inv.player.source)
-    if not player then return false end
-    local char = player:GetData('Character')
+    local char = exports['pulsar-characters']:FetchCharacterSource(inv.player.source)
     if not char then return false end
     local quals = char:GetData('Qualifications') or {}
     for _, v in ipairs(quals) do
@@ -1121,9 +1119,7 @@ CreateThread(function()
         local key      = schematicKey
         local itemName = 'schematic_' .. key
         InvServer.Items:RegisterUse(itemName, 'UnlockSchematic', function(source, slotData)
-            local player = exports['pulsar-core']:FetchSource(source)
-            if not player then return end
-            local char = player:GetData('Character')
+            local char = exports['pulsar-characters']:FetchCharacterSource(source)
             if not char then return end
             local SID = char:GetData('SID')
 

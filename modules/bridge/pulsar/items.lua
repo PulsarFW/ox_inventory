@@ -111,17 +111,14 @@ local function registerConsumableUse(item)
         -- drug state storage (oxy, weed, etc.) — stored on character for pulsar-drugs/police to read
         if item.drugState then
             do
-                local plyr = exports['pulsar-core']:FetchSource(source)
-                if plyr then
-                    local char = plyr:GetData('Character')
-                    if char then
-                        local drugStates = char:GetData('DrugStates') or {}
-                        drugStates[item.drugState.type] = {
-                            item    = item.name,
-                            expires = os.time() + item.drugState.duration,
-                        }
-                        char:SetData('DrugStates', drugStates)
-                    end
+                local char = exports['pulsar-characters']:FetchCharacterSource(source)
+                if char then
+                    local drugStates = char:GetData('DrugStates') or {}
+                    drugStates[item.drugState.type] = {
+                        item    = item.name,
+                        expires = os.time() + item.drugState.duration,
+                    }
+                    char:SetData('DrugStates', drugStates)
                 end
             end
         end
