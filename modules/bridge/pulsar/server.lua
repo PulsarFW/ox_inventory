@@ -1039,7 +1039,7 @@ CreateThread(function()
         local player = exports['pulsar-core']:FetchSource(source)
         if charName == '' and player then charName = player:GetData('Name') end
         local cash = char:GetData('Cash') or 0
-        server.setPlayerInventory({
+        exports['ox_inventory']:setPlayerInventory({
             source      = source,
             name        = charName,
             identifier  = char:GetData('SID'),

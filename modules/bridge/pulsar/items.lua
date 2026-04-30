@@ -255,4 +255,8 @@ AddEventHandler('Crafting:Client:OpenCrafting', function(ent, data)
     exports['ox_inventory']:openInventory('crafting', { id = data.id, index = 1 })
 end)
 
+Inventory.Items:RegisterUse('laptop', 'LaptopOpen', function(source)
+    TriggerClientEvent('Laptop:Client:Open', source)
+end)
+
 print(string.format('^2[pulsar-ox-bridge] loaded %d items, %d consumable callbacks :)^0', itemCount, callbackCount))
