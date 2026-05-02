@@ -83,8 +83,8 @@
           inventory = {
               { name = 'armor',        price = 750  },
               { name = 'heavyarmor',   price = 2250 },
-              { name = 'WEAPON_PISTOL',price = 0,   license = 'weapon' },
-              { name = 'WEAPON_FNX',   price = 0,   license = 'weapon' },
+              { name = 'WEAPON_PISTOL',price = 0,   license = 'Weapons' },
+              { name = 'WEAPON_FNX',   price = 0,   license = 'Weapons' },
               { name = 'AMMO_PISTOL',  price = 0   },
               { name = 'WEAPON_BAT',   price = 0   },
           },

@@ -161,16 +161,24 @@ function server.hasGroup(inv, group)
     end
 end
 
--- checks qualifications (driving license, weapon license etc) on the character
-function server.hasLicense(inv, name)
-    if not inv?.player then return false end
-    local char = exports['pulsar-characters']:FetchCharacterSource(inv.player.source)
+function server.hasLicense(source, name)
+    local char = exports['pulsar-characters']:FetchCharacterSource(source)
     if not char then return false end
-    local quals = char:GetData('Qualifications') or {}
-    for _, v in ipairs(quals) do
-        if v == name then return true end
+    return char:GetData('Licenses')?[name]?.Active or false
+end
+
+local function hasValue(tbl, value)
+    if not tbl then return false end
+    for _, v in ipairs(tbl) do
+        if v == value then return true end
     end
     return false
+end
+
+function server.hasQualification(source, name)
+    local char = exports['pulsar-characters']:FetchCharacterSource(source)
+    if not char then return false end
+    return hasValue(char:GetData('Qualifications'), name)
 end
 
 -- duty check — reads the onDuty state bag set by pulsar-jobs
