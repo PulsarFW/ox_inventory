@@ -30,6 +30,7 @@ local function ConvertItem(item)
             dispenseItem  = item.dispenseItem or nil,
             drugState     = item.drugState or nil,
             isThrowable   = item.isThrowable or false,
+            pulsarComponent = item.component or nil,
         },
         staticMetadata = item.staticMetadata or nil,
     }

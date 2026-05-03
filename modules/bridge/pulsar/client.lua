@@ -802,6 +802,49 @@ RegisterNetEvent('Weapons:Client:UpdateAttachments', function(components)
     if _equipped.MetaData then _equipped.MetaData.WeaponComponents = components end
 end)
 
+-- pulsar weapon attatchments 
+RegisterNetEvent('Weapons:Client:UseAttachment', function(data)
+    if not _equipped then
+        exports['pulsar-hud']:Notification('error', 'No weapon equipped', 3000)
+        return
+    end
+
+    local itemDef = _weapItemDefs[_equipped.Name]
+    local weaponHashName = itemDef and itemDef.weapon or _equipped.Name
+    local componentHash = data.component and data.component.strings and data.component.strings[weaponHashName]
+
+    if not componentHash then
+        exports['pulsar-hud']:Notification('error', 'This attachment is not compatible with your weapon', 3000)
+        return
+    end
+
+    local currentComponents = table.clone((_equipped.MetaData and _equipped.MetaData.WeaponComponents) or {})
+    local returnItemName = nil
+
+    for k, v in pairs(currentComponents) do
+        if v.attachType == data.component.type then
+            returnItemName = k
+            currentComponents[k] = nil
+            break
+        end
+    end
+
+    currentComponents[data.itemName] = {
+        attachment = componentHash,
+        attachType = data.component.type,
+    }
+
+    TriggerServerEvent('Weapons:Server:ApplyAttachment', {
+        weaponSlot     = _equipped.Slot,
+        weaponName     = _equipped.Name,
+        attachItemSlot = data.itemSlot,
+        attachItemName = data.itemName,
+        attachItemMeta = data.itemMeta,
+        newComponents  = currentComponents,
+        returnItemName = returnItemName,
+    })
+end)
+
 -- bullet loading: server found compatible weapons, show weapon picker + count input
 RegisterNetEvent('Inventory:Client:LoadBullets', function(data)
     local function loadInto(weapon)

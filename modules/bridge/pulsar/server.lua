@@ -472,6 +472,19 @@ function server.UseItem(source, itemName, data)
         return
     end
 
+    -- pulsar attachments
+    if itemDef and itemDef.server and itemDef.server.pulsarType == 16 then
+        local component = itemDef.server.pulsarComponent
+        if not component then return end
+        TriggerClientEvent('Weapons:Client:UseAttachment', source, {
+            itemName  = itemName,
+            itemSlot  = data.slot,
+            itemMeta  = data.metadata,
+            component = component,
+        })
+        return
+    end
+
     -- pulsar ammo (type 9): send to client for progress bar + ammo add, remove on AmmoLoaded
     if itemDef and itemDef.server and itemDef.server.pulsarType == 9 then
         TriggerClientEvent('Inventory:Client:AmmoLoad', source, {
@@ -514,6 +527,33 @@ function server.UseItem(source, itemName, data)
         end
     end
 end
+
+-- client resolved attachment compatibility and sends back result to persist
+RegisterServerEvent('Weapons:Server:ApplyAttachment', function(req)
+    local source = source
+    local inv = Inventory(source)
+    if not inv then return end
+
+    local attachSlot = inv.items[req.attachItemSlot]
+    if not attachSlot or attachSlot.name ~= req.attachItemName then return end
+
+    local weapSlot = inv.items[req.weaponSlot]
+    if not weapSlot or weapSlot.name ~= req.weaponName then return end
+    local weapDef = Items(req.weaponName)
+    if not weapDef or not weapDef.server or weapDef.server.pulsarType ~= 2 then return end
+
+    local meta = table.clone(weapSlot.metadata or {})
+    meta.WeaponComponents = req.newComponents
+    Inventory.SetMetadata(inv, req.weaponSlot, meta)
+
+    Inventory.RemoveItem(inv, req.attachItemName, 1, req.attachItemMeta, req.attachItemSlot)
+
+    if req.returnItemName then
+        Inventory.AddItem(inv, req.returnItemName, 1, {})
+    end
+
+    TriggerClientEvent('Weapons:Client:UpdateAttachments', source, req.newComponents)
+end)
 
 -- client confirmed ammo loaded after progress bar — remove the ammo box
 RegisterServerEvent('Inventory:Server:AmmoLoaded', function(itemName, itemSlot, itemMeta)
