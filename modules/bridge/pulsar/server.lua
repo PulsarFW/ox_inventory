@@ -9,9 +9,9 @@ local Inventory = require 'modules.inventory.server'
 local Items     = require 'modules.items.server'
 
 local function toSource(sid)
-    local player = exports['pulsar-core']:FetchPlayerData('SID', tonumber(sid))
-    if not player then return nil end
-    return player:GetData('Source')
+    local char = exports['pulsar-characters']:FetchBySID(tonumber(sid))
+    if not char then return nil end
+    return char:GetData('Source')
 end
 
 local function toTarget(owner, invType)
@@ -876,14 +876,14 @@ _Loot.CustomSet = function(self, set, owner, invType, count)
     local target = toTarget(owner, invType)
     if not target then return end
     local item = set[math.random(#set)]
-    return exports['ox_inventory']:AddItem(target, item, count or 1)
+    return _origAddItem(Inventory(target), item, count or 1)
 end
 
 _Loot.CustomSetWithCount = function(self, set, owner, invType)
     local target = toTarget(owner, invType)
     if not target then return end
     local i = set[math.random(#set)]
-    return exports['ox_inventory']:AddItem(target, i.name, math.random(i.min or 1 , i.max or 1))
+    return _origAddItem(Inventory(target), i.name, math.random(i.min or 1 , i.max or 1))
 end
 
 
@@ -891,7 +891,7 @@ _Loot.CustomWeightedSet = function(self, set, owner, invType)
     local target = toTarget(owner, invType)
     if not target then return end
     local item = weightedRandom(set)
-    if item then return exports['ox_inventory']:AddItem(target, item, 1) end
+    if item then return _origAddItem(Inventory(target), item, 1) end
 end
 
 _Loot.CustomWeightedSetWithCount = function(self, set, owner, invType, dontAdd)
@@ -901,7 +901,7 @@ _Loot.CustomWeightedSetWithCount = function(self, set, owner, invType, dontAdd)
     if dontAdd then return { name = item.name, count = count } end
     local target = toTarget(owner, invType)
     if not target then return end 
-    return exports['ox_inventory']:AddItem(target, item.name, count, item.metadata or {})
+    return _origAddItem(Inventory(target), item.name, count, item.metadata or {})
 end
 
 _Loot.CustomWeightedSetWithCountAndModifier = function(self, set, owner, invType, modifier, dontAdd)
@@ -911,7 +911,7 @@ _Loot.CustomWeightedSetWithCountAndModifier = function(self, set, owner, invType
     if dontAdd then return { name = item.name, count = count } end
     local target = toTarget(owner, invType)
     if not target then return end
-    return exports['ox_inventory']:AddItem(target, item.name, count, item.metadata or {})
+    return _origAddItem(Inventory(target), item.name, count, item.metadata or {})
 end
 
 _Loot.Sets = {
@@ -927,7 +927,7 @@ _Loot.Sets = {
               {18, 'citrine'},
               {31, 'opal'},
         })
-        if gem then exports['ox_inventory']:AddItem(target, gem, 1) end
+        if gem then _origAddItem(Inventory(target), gem, 1) end
     end,
     Ore = function(self, owner, invType, count)
         local target = toTarget(owner, invType)
@@ -937,7 +937,7 @@ _Loot.Sets = {
             {27, 'silverore'},
             {55, 'ironore'},
         })
-        if ore then exports['ox_inventory']:AddItem(target, ore, count or 1) end
+        if ore then _origAddItem(Inventory(target), ore, count or 1) end
     end,
 }
 
@@ -1207,6 +1207,10 @@ end)
 -- (standalone server_scripts have their own require cache and write to a dead ItemList)
 require('modules.bridge.pulsar.items')
 
+-- exports.ox_inventory:AddItem/RemoveItem(SID, ...) get proper SID→source resolution
+exports('AddItem', Inventory.AddItem)
+exports('RemoveItem', Inventory.RemoveItem)
+
 -- expose RegisterUse as an export so external resources can register item callbacks
 -- calling convention: exports['ox_inventory']:RegisterUse(itemName, id, callback)
 exports('RegisterUse', function(itemName, id, cb)
@@ -1242,13 +1246,13 @@ end)
 -- pulsar-compat server exports (bulk)
 
 exports('ItemsHas', function(source, name, count)
-    local inv = Inventory(source)
+    local inv = Inventory(toTarget(source, 1))
     if not inv then return false end
     return (Inventory.GetItemCount(inv, name) or 0) >= (count or 1)
 end)
 
 exports('CheckPlayerHasItem', function(source, name, count)
-    local inv = Inventory(source)
+    local inv = Inventory(toTarget(source, 1))
     if not inv then return false end
     return (Inventory.GetItemCount(inv, name) or 0) >= (count or 1)
 end)
@@ -1306,7 +1310,8 @@ exports('RemoveStash', function(id)
     if inv then Inventory.Clear(inv) end
 end)
 
-exports('ItemsGetFirst', function(owner, invType, name)
+exports('ItemsGetFirst', function(owner, name, invType)
+    invType = invType or 1
     local target = toTarget(owner, invType)
     if not target then return nil end
     local inv = Inventory(target)
