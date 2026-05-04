@@ -258,6 +258,10 @@ do
     StaticMetaIndex = idx
 end
 
+-- overrides so methods inside Inventory.Items and loot functions all reference the ox functions
+local _origAddItem    = Inventory.AddItem
+local _origRemoveItem = Inventory.RemoveItem
+
 -- every single pulsar resource registers item callbacks through here so this HAS to work
 local ItemCallbacks = {}
 
@@ -338,8 +342,6 @@ Inventory.Items = {
         end
         return false
     end,
-    
-    -- used EVERYWHERE (150+ calls), removes a specific slot
     -- owner = SID for players, stash/container ID for everything else
     RemoveSlot = function(self, owner, name, count, slotNum, invType)
         local target = toTarget(owner, invType)
@@ -352,7 +354,7 @@ Inventory.Items = {
     RemoveId = function(self, owner, invType, slot)
         local target = toTarget(owner, invType)
         if not target then return false end
-        return Inventory.RemoveItem(Inventory(target), slot.Name or slot.name, 1, nil, slot.Slot or slot.slot)
+        return _origRemoveItem(Inventory(target), slot.Name or slot.name, 1, nil, slot.Slot or slot.slot)
     end,
 
     -- plain remove by item name and count, no slot targeting
@@ -500,7 +502,9 @@ function server.UseItem(source, itemName, data)
     end
 
     local callbacks = ItemCallbacks[itemName]
-    local pulsarItem = toSlot(data, source, 1)
+    local _char = exports['pulsar-characters']:FetchCharacterSource(source)
+    local _owner = _char and tostring(_char:GetData('SID')) or tostring(source)
+    local pulsarItem = toSlot(data, _owner, 1)
     local animConfig = itemDef and itemDef.server and itemDef.server.animConfig
 
     if animConfig then
@@ -593,11 +597,8 @@ RegisterServerEvent('Weapon:Server:UpdateAmmoDiff', function(slot, ammo, clip)
 end)
 
 -- the shims that make FetchComponent('Inventory') work without changing any other resource
--- capture originals BEFORE replacing so inner calls use the real ox functions
 -- shims detect calling convention: ox-internal passes an inventory object (has .slots),
 -- pulsar component calls pass the module table as self with owner/name/count args
-local _origAddItem    = Inventory.AddItem
-local _origRemoveItem = Inventory.RemoveItem
 
 Inventory.AddItem = function(self, owner, name, count, metadata, invType)
     if type(self) == 'table' and self.slots then
@@ -1275,12 +1276,12 @@ exports('ItemsHasType', function(source, itemType)
     return false
 end)
 
-exports('RemoveSlot', function(owner, invType, name, count, slot)
+exports('RemoveSlot', function(owner, name, count, slotNum, invType)
     local target = toTarget(owner, invType)
     if not target then return false end
     local inv = Inventory(target)
     if not inv then return false end
-    return Inventory.RemoveItem(inv, name, count or 1, nil, slot)
+    return Inventory.RemoveItem(inv, name, count or 1, nil, slotNum)
 end)
 
 exports('RemoveId', function(owner, invType, id, name, count)
@@ -1291,9 +1292,9 @@ exports('RemoveId', function(owner, invType, id, name, count)
     if type(id) == 'table' then
         local itemName = id.Name or id.name or name
         local slotNum  = id.Slot or id.slot
-        return Inventory.RemoveItem(inv, itemName, count or 1, nil, slotNum)
+        return _origRemoveItem(inv, itemName, count or 1, nil, slotNum)
     end
-    return Inventory.RemoveItem(inv, name, count or 1, nil, id)
+    return _origRemoveItem(inv, name, count or 1, nil, id)
 end)
 
 exports('RemoveAll', function(source)

@@ -17,6 +17,7 @@ local function ConvertItem(item)
         stack       = item.isStackable ~= false and (item.isStackable or true),
         close       = item.closeUi or false,
         decay       = item.isDestroyed or false,
+        durability  = item.durability or nil,
         degrade     = item.durability and math.floor(item.durability / 60) or nil,
         server      = {
             pulsarType    = item.type,

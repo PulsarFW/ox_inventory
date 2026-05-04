@@ -73,7 +73,11 @@ const SlotTooltip: React.ForwardRefRenderFunction<
           <Divider color={tokens.borderTeal} my={6} />
           {description && (
             <div className="tooltip-description">
-              <ReactMarkdown className="tooltip-markdown">{description}</ReactMarkdown>
+              {/<[a-z][\s\S]*>/i.test(description) ? (
+                <span className="tooltip-markdown" dangerouslySetInnerHTML={{ __html: description }} />
+              ) : (
+                <ReactMarkdown className="tooltip-markdown">{description}</ReactMarkdown>
+              )}
             </div>
           )}
           {inventoryType !== 'crafting' ? (
