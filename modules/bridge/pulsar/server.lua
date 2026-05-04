@@ -17,7 +17,9 @@ end
 local function toTarget(owner, invType)
     invType = invType or 1
     if invType == 1 then
-        return type(owner) == 'number' and toSource(owner) or owner
+        local n = tonumber(owner)
+        if n then return toSource(n) end
+        return owner
     elseif invType == 4 then
         return (owner:sub(1, 6) ~= 'trunk-') and 'trunk-' ..owner or owner
     elseif invType == 5 then
@@ -1286,6 +1288,11 @@ exports('RemoveId', function(owner, invType, id, name, count)
     if not target then return false end
     local inv = Inventory(target)
     if not inv then return false end
+    if type(id) == 'table' then
+        local itemName = id.Name or id.name or name
+        local slotNum  = id.Slot or id.slot
+        return Inventory.RemoveItem(inv, itemName, count or 1, nil, slotNum)
+    end
     return Inventory.RemoveItem(inv, name, count or 1, nil, id)
 end)
 
@@ -1469,7 +1476,18 @@ exports('UnequipIfEquipped', function(source, name)
 end)
 
 -- stubs for pulsar-specific tracking that doesn't map to ox
-exports('SetItemCreateDate', function() end)
+exports('SetItemCreateDate', function(slotId, newCreateDate)
+    if type(slotId) ~= 'table' then return end
+    local target = toTarget(slotId.owner, 1)
+    if not target then return end
+    local inv = Inventory(target)
+    if not inv or not inv.items then return end
+    local slot = inv.items[slotId.slot]
+    if not slot then return end
+    local meta = table.clone(slot.metadata or {})
+    meta.CreateDate = newCreateDate
+    Inventory.SetMetadata(inv, slotId.slot, meta)
+end)
 exports('BallisticsClear', function() end)
 exports('HoldingPut', function() end)
 exports('HoldingTake', function() end)
