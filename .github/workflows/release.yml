@@ -28,12 +28,9 @@ jobs:
 
       - name: Bundle files
         run: |
-          mkdir -p ./temp/ox_inventory/web
-          cp ./{LICENSE,README.md,fxmanifest.lua,client.lua,server.lua,init.lua} ./temp/ox_inventory
-          cp -r ./{data,locales,modules,setup} ./temp/ox_inventory
-          cp -r ./web/build ./temp/ox_inventory/web/
-          cp -r ./web/images ./temp/ox_inventory/web/
-          cd ./temp && zip -r ../ox_inventory.zip ./ox_inventory
+          mkdir -p staging/ox_inventory
+          rsync -a --exclude='.github' --exclude='node_modules' --exclude='staging' . staging/ox_inventory/
+          cd staging && zip -r ../ox_inventory.zip ox_inventory/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
