@@ -1210,10 +1210,6 @@ end)
 -- (standalone server_scripts have their own require cache and write to a dead ItemList)
 require('modules.bridge.pulsar.items')
 
--- exports.ox_inventory:AddItem/RemoveItem(SID, ...) get proper SID→source resolution
-exports('AddItem', Inventory.AddItem)
-exports('RemoveItem', Inventory.RemoveItem)
-
 -- expose RegisterUse as an export so external resources can register item callbacks
 -- calling convention: exports['ox_inventory']:RegisterUse(itemName, id, callback)
 exports('RegisterUse', function(itemName, id, cb)
