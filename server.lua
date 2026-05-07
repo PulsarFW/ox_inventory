@@ -471,7 +471,10 @@ lib.callback.register('ox_inventory:useItem', function(source, itemName, slot, m
 			}) then return false end
 
             ---@type boolean
-			local success = lib.callback.await('ox_inventory:usingItem', source, data, noAnim)
+			local p = promise.new()
+            lib.callback('ox_inventory:usingItem', source, function(result) p:resolve(result) end, data, noAnim)
+            SetTimeout(5000, function() if p.state == 0 then p:resolve(false) end end)
+            local success = Citizen.Await(p)
 
 			if item.weapon then
 				inventory.weapon = success and slot or nil
