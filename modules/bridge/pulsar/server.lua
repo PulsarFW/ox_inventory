@@ -983,11 +983,15 @@ end
 local function pulsarTargetToOx(targeting, location)
     if not targeting then return nil, nil end
     if targeting.poly then
+        local opts = targeting.poly.options or {}
         return nil, {
-            name = targeting.poly.name or ('crafting_%s'):format(tostring(location)),
-            coords = targeting.poly.coords,
-            w = targeting.poly.w or 2.0,
-            l = targeting.poly.l or 2.0,
+            {
+                coords   = targeting.poly.coords,
+                size     = vector3(targeting.poly.l or 2.0, targeting.poly.w or 2.0, 2.0),
+                rotation = opts.heading or 0,
+                minZ     = opts.minZ,
+                maxZ     = opts.maxZ,
+            }
         }
     end
 
