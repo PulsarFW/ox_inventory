@@ -950,6 +950,7 @@ if allItems then
                     stack = item.isStackable ~= false and (item.isStackable or true),
                     close = item.closeUi or true,
                     count = 0,
+                    price = item.price,
                 }
                 -- type 9 ammo: export path bypasses the currentWeapon gate in useSlot
                 if item.type == 9 then
