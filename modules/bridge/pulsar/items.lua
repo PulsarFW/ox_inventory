@@ -19,6 +19,7 @@ local function ConvertItem(item)
         decay       = item.isDestroyed or false,
         durability  = item.durability or nil,
         degrade     = item.durability and math.floor(item.durability / 60) or nil,
+        price       = item.price or 0,
         server      = {
             pulsarType    = item.type,
             pulsarRarity  = item.rarity,
