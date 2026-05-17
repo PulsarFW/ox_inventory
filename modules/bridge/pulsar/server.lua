@@ -50,7 +50,7 @@ end
 
 function server.setPlayerData(player)
     if not player.groups then
-        print('^1[pulsar-ox-bridge] setPlayerData no groups for' .. tostring(player.name) .. '^0')
+        exports['pulsar-core']:LoggerError('pulsar-ox-bridge', 'setPlayerData: no groups found for player ' .. tostring(player.source), { console = true })
     end
     return {
         source = player.source,
@@ -241,11 +241,14 @@ end
 
 -- [compType][drawableId][textureId] = itemName
 local StaticMetaIndex
+local _staticMetaItems = {}
 do
     local allItems = lib.load('data.pulsar-items.index') or {}
     local idx = {}
     for _, item in ipairs(allItems) do
         if item.staticMetadata then
+            local key = (item.name:sub(1, 7):lower() == 'weapon_') and item.name or item.name:lower()
+            _staticMetaItems[key] = item.staticMetadata
             for compType, meta in pairs(item.staticMetadata) do
                 if type(meta) == 'table' and meta.drawableId ~= nil and meta.textureId ~= nil then
                     idx[compType] = idx[compType] or {}
@@ -256,6 +259,20 @@ do
         end
     end
     StaticMetaIndex = idx
+end
+
+if next(_staticMetaItems) then
+    exports['ox_inventory']:registerHook('createItem', function(payload)
+        local defaults = _staticMetaItems[payload.item.name]
+        if not defaults then return end
+        local metadata = payload.metadata or {}
+        for k, v in pairs(defaults) do
+            if metadata[k] == nil then metadata[k] = v end
+        end
+        return metadata
+    end, {
+        itemFilter = _staticMetaItems,
+    })
 end
 
 -- overrides so methods inside Inventory.Items and loot functions all reference the ox functions
@@ -525,13 +542,12 @@ function server.UseItem(source, itemName, data)
         end
     end
 
-    -- auto remove if flagged as consumed but only if a callback didnt already pull it
-    if itemDef and itemDef.server and itemDef.server.isRemoved then
-        local stillThere = Inventory.GetSlot(Inventory(source), data.slot)
-        if stillThere and stillThere.name == itemName then
-            Inventory.RemoveItem(Inventory(source), itemName, 1, data.metadata, data.slot)
-        end
-    end
+    -- if itemDef and itemDef.server and itemDef.server.isRemoved then
+    --     local stillThere = Inventory.GetSlot(Inventory(source), data.slot)
+    --     if stillThere and stillThere.name == itemName then
+    --         Inventory.RemoveItem(Inventory(source), itemName, 1, data.metadata, data.slot)
+    --     end
+    -- end
 end
 
 -- client resolved attachment compatibility and sends back result to persist
@@ -609,7 +625,7 @@ Inventory.AddItem = function(self, owner, name, count, metadata, invType)
     end
     local target = toTarget(owner, invType)
     if not target then
-        print('^1[pulsar-ox-bridge] AddItem: could not resolve owner ' .. tostring(owner) .. '^0')
+        exports['pulsar-core']:LoggerError('pulsar-ox-bridge', 'AddItem: could not resolve owner ' .. tostring(owner), { console = true })
         return false
     end
     metadata = injectDefaultMeta(name, metadata, target)
@@ -795,7 +811,7 @@ Inventory.OpenSecondary = function(self, source, invType, owner, vehClass, vehMo
             local netId = NetworkGetNetworkIdFromEntity(targetEntity)
             exports['ox_inventory']:forceOpenInventory(source, oxInvType, { netid = netId })
         else
-            print('^3[pulsar-ox-bridge] OpenSecondary: no vehicle found with VIN: ' .. tostring(owner) .. ' for ' .. oxInvType .. '^0')
+            exports['pulsar-core']:LoggerError('pulsar-ox-bridge', ('OpenSecondary: could not find vehicle with VIN %s for owner %s'):format(owner, tostring(owner)), { console = true })
         end
     elseif invType == 10 then
         TriggerClientEvent('Inventory:Client:Load', source, { invType = 10, owner = owner })
@@ -983,15 +999,11 @@ end
 local function pulsarTargetToOx(targeting, location)
     if not targeting then return nil, nil end
     if targeting.poly then
-        local opts = targeting.poly.options or {}
         return nil, {
-            {
-                coords   = targeting.poly.coords,
-                size     = vector3(targeting.poly.l or 2.0, targeting.poly.w or 2.0, 2.0),
-                rotation = opts.heading or 0,
-                minZ     = opts.minZ,
-                maxZ     = opts.maxZ,
-            }
+            name = targeting.poly.name or ('crafting_%s'):format(tostring(location)),
+            coords = targeting.poly.coords,
+            w = targeting.poly.w or 2.0,
+            l = targeting.poly.l or 2.0,
         }
     end
 
@@ -1052,7 +1064,7 @@ local CraftingReal = {}
           oxData    = data,
       }
 
-      print(('^2[pulsar-ox-bridge] Registered crafting bench: %s^0'):format(tostring(id)))
+      exports['pulsar-core']:LoggerInfo('pulsar-ox-bridge', ('Registered crafting bench %s with ox_inventory'):format(id), { console = true })
   end
 
 CraftingReal.AddRecipieToBench = function(self, bench, id, recipe) end -- future use??
@@ -1207,7 +1219,7 @@ CreateThread(function()
         end)
     end
     local count = 0; for _ in pairs(schematics) do count = count + 1 end
-    print(('^2[pulsar-ox-bridge] Registered %s schematic item use handlers^0'):format(count))
+    exports['pulsar-core']:LoggerInfo('pulsar-ox-bridge', ('Registered %s schematic item use handlers'):format(count), { console = true })
 end)
 
 -- load pulsar items from within this execution chain
@@ -1420,8 +1432,8 @@ exports('LootCustomWeightedSetWithCountAndModifier', function(set, owner, invTyp
     return _Loot.CustomWeightedSetWithCountAndModifier(_Loot, set, owner, invType, modifier, dontAdd)
 end)
 
-exports('LootCustomWeightedSetWithCount', function(set, owner, invType)
-    return _Loot.CustomWeightedSetWithCount(_Loot, set, owner, invType)
+exports('LootCustomWeightedSetWithCount', function(set, owner, invType, dontAdd)
+    return _Loot.CustomWeightedSetWithCount(_Loot, set, owner, invType, dontAdd)
 end)
 
 exports('LootCustomSet', function(set, owner, invType, count)
@@ -1490,8 +1502,35 @@ exports('SetItemCreateDate', function(slotId, newCreateDate)
     Inventory.SetMetadata(inv, slotId.slot, meta)
 end)
 exports('BallisticsClear', function() end)
-exports('HoldingPut', function() end)
-exports('HoldingTake', function() end)
+
+exports('HoldingPut', function(source)
+    exports.ox_inventory:ReturnInventory(source)
+    Wait(1000)
+    exports.ox_inventory:ConfiscateInventory(source)
+end)
+
+exports('HoldingTake', function(source)
+    exports.ox_inventory:ReturnInventory(source)
+end)
+
+exports('GetNumberOfFreeSlots', function(id, invType)
+    local inv = exports.ox_inventory:GetInventory(id)
+    if not inv then
+        if invType == 4 or invType == 'trunk' then
+            inv = exports.ox_inventory:GetInventory(('trunk%s'):format(id))
+        elseif invType == 3 or invType == 'glovebox' then
+            inv = exports.ox_inventory:GetInventory(('glovebox%s'):format(id))
+        else
+            inv = exports.ox_inventory:GetInventory(('trunk%s'):format(id)) or exports.ox_inventory:GetInventory(('glovebox%s'):format(id))
+        end
+    end
+    local slots = inv and inv.slots or 0
+    local items = inv and inv.items or {}
+    if type(items) ~= 'table' then items = {} end
+    local free = slots - #items
+    if free < 0 then free = 0 end
+    return free
+end)
 
 -- rebuild groups when someones job changes
 AddEventHandler('Jobs:Server:JobUpdate', function(source)
@@ -1902,12 +1941,12 @@ end, {
 exports['ox_inventory']:registerHook('swapItems', function(payload)
     local toSlot   = payload.toSlot
     local fromSlot = payload.fromSlot
-    if type(toSlot) == 'table' and fromSlot?.name and not fromSlot.name:find('WEAPON_') then
+    if type(fromSlot) == 'table' and fromSlot.name and not fromSlot.name:find('WEAPON_') then
         return false
-    elseif type(toSlot) == 'table' and toSlot?.name and not toSlot.name:find('WEAPON_') then
+    end
+    if type(toSlot) == 'table' and toSlot.name and not toSlot.name:find('WEAPON_') then
         return false
     end
 end, {
-    inventoryFilter = { '^polsecuredcompartment[%w]+' },
+    inventoryFilter = { '^pdrack:' },
 })
-
